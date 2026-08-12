@@ -625,32 +625,15 @@ export default function IconStudio() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-studio-line bg-studio-panel p-4">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-studio-accent" />
-                <h2 className="text-sm font-semibold">Icon assistant</h2>
-              </div>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={assistantRequest}
-                  onChange={(event) => setAssistantRequest(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") void askAssistant();
-                  }}
-                  placeholder="Generate an icon or repair the current code…"
-                  maxLength={500}
-                  className="min-w-0 flex-1 rounded-lg border border-studio-line bg-studio-elevated px-3 py-2 text-sm outline-none"
-                />
-                <button
-                  onClick={askAssistant}
-                  disabled={assistantBusy || assistantRequest.trim().length < 2}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-accent px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                >
-                  <Sparkles size={15} /> {assistantBusy ? "Working…" : "Generate / fix"}
-                </button>
-              </div>
-              {assistantError && <p className="mt-2 text-xs text-studio-accent">{assistantError}</p>}
-            </div>
+            <IconAgent
+              code={code}
+              color={spec.color}
+              size={spec.size}
+              stroke={spec.stroke}
+              enabled={Boolean(user)}
+              onApply={setCode}
+            />
+
           </section>
         </div>
       </div>
