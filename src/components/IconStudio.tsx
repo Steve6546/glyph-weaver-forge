@@ -1,0 +1,659 @@
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  icons as lucideIcons,
+  AlertTriangle,
+  Check,
+  Copy,
+  Download,
+  ExternalLink,
+  Library,
+  LogOut,
+  Maximize2,
+  Minus,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import EditorModule from "react-simple-code-editor";
+import Prism from "prismjs";
+import "prismjs/components/prism-markup";
+import "prismjs/components/prism-clike";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/themes/prism-tomorrow.css";
+
+import { useAuth } from "@/hooks/useAuth";
+import { createSnippet } from "@/lib/snippets";
+import { detectLanguage, grammarFor, labelFor } from "@/lib/detect-language";
+import { buildIconCode, parseCode, toKebab, type IconSpec } from "@/lib/icon-code";
+import { assistIconCode } from "@/lib/icon-assistant.functions";
+
+// Interop: some bundlers hand back the module namespace instead of the component.
+const Editor = ((EditorModule as unknown as { default?: typeof EditorModule }).default ??
+  EditorModule) as typeof EditorModule;
+
+const ALL_ICONS = Object.keys(lucideIcons).map((pascal) => ({
+  pascal,
+  name: toKebab(pascal),
+}));
+
+const DEFAULT_SPEC: IconSpec = {
+  pascal: "Camera",
+  color: "#ffffff",
+  size: 160,
+  stroke: 2,
+  absolute: false,
+};
+const PREVIEW_SIZES = [16, 32, 64, 128, 256];
+const CANVAS_PAD = 40;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+
+/** Measures a container so the preview can always fit its glyph exactly. */
+function useElementWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    setWidth(el.getBoundingClientRect().width);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+export default function IconStudio() {
+  const { user, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const runAssistant = useServerFn(assistIconCode);
+
+  const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC);
+  const [code, setCode] = useState(() => buildIconCode(DEFAULT_SPEC));
+  const [query, setQuery] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [assistantRequest, setAssistantRequest] = useState("");
+  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [assistantError, setAssistantError] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [shellRef, shellWidth] = useElementWidth<HTMLDivElement>();
+
+  const deferredQuery = useDeferredValue(query);
+  const results = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase().replace(/\s+/g, "-");
+    const list = q ? ALL_ICONS.filter((i) => i.name.includes(q)) : ALL_ICONS;
+    return list.slice(0, 240);
+  }, [deferredQuery]);
+
+  // The editor is the single source of truth: what you type is what renders.
+  const parsed = useMemo(() => parseCode(code, spec), [code, spec]);
+
+  useEffect(() => {
+    if (parsed.kind !== "icon") return;
+    const next = parsed.spec;
+    setSpec((prev) =>
+      prev.pascal === next.pascal &&
+      prev.color === next.color &&
+      prev.size === next.size &&
+      prev.stroke === next.stroke &&
+      prev.absolute === next.absolute
+        ? prev
+        : next,
+    );
+  }, [parsed]);
+
+  const apply = useCallback(
+    (patch: Partial<IconSpec>) => {
+      const next = { ...spec, ...patch };
+      setSpec(next);
+      setCode(buildIconCode(next));
+    },
+    [spec],
+  );
+
+  const langId = useMemo(() => detectLanguage(code), [code]);
+
+  const highlight = useCallback(
+    (value: string) => {
+      const grammarName = grammarFor(langId);
+      const grammar = Prism.languages[grammarName] ?? Prism.languages["markup"];
+      if (!grammar) return value;
+      try {
+        return Prism.highlight(value, grammar, grammarName);
+      } catch {
+        return value;
+      }
+    },
+    [langId],
+  );
+
+  const Icon = parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
+  const iconName = toKebab(spec.pascal);
+
+  const canvasSize = Math.max(320, Math.min(640, shellWidth || 560));
+  const inner = canvasSize - CANVAS_PAD * 2;
+  const fitZoom = Math.min(1, inner / spec.size);
+  const renderedPx = Math.max(8, Math.round(Math.min(spec.size * fitZoom * zoom, inner)));
+
+  const previewError =
+    parsed.kind === "error"
+      ? parsed.message
+      : parsed.kind === "empty"
+          ? "The editor is empty — the preview has been cleared. Pick an icon or paste code."
+        : parsed.kind === "unknown"
+          ? "No renderable Lucide component or <svg> was found."
+          : null;
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setCopied(null);
+    }
+  };
+
+  const copySvg = () => {
+    const svg = canvasRef.current?.querySelector("svg");
+    if (svg) copy(svg.outerHTML, "svg");
+  };
+
+  const downloadSvg = () => {
+    const svg = canvasRef.current?.querySelector("svg");
+    if (!svg) return;
+    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${iconName || "icon"}.svg`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const askAssistant = async () => {
+    if (!assistantRequest.trim()) return;
+    setAssistantBusy(true);
+    setAssistantError(null);
+    try {
+      const result = await runAssistant({ data: { request: assistantRequest, code } });
+      setCode(result.code);
+      setAssistantRequest("");
+    } catch (error) {
+      setAssistantError(error instanceof Error ? error.message : "The assistant could not update the code.");
+    } finally {
+      setAssistantBusy(false);
+    }
+  };
+
+  const resetAll = () => {
+    setSpec(DEFAULT_SPEC);
+    setCode(buildIconCode(DEFAULT_SPEC));
+    setZoom(1);
+  };
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await createSnippet(
+        {
+          title: title.trim() || iconName,
+          language: langId,
+          code,
+          icon_name: iconName,
+          color: spec.color,
+          stroke: spec.stroke,
+          size: spec.size,
+        },
+        user.id,
+      );
+      setTitle("");
+      setSaveMessage("Saved to your library.");
+    } catch (e) {
+      setSaveMessage((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-studio-bg text-studio-text">
+      <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-studio-line pb-6">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">Lucide Icon Studio</h1>
+            <p className="mt-1 truncate text-sm text-studio-muted">
+              {ALL_ICONS.length} icons · live two-way code preview.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {!authLoading &&
+              (user ? (
+                <>
+                  <Link
+                    to="/library"
+                    className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+                  >
+                    <Library size={16} />
+                    <span className="hidden sm:inline">Library</span>
+                  </Link>
+                  <button
+                    onClick={async () => {
+                      await signOut();
+                      navigate({ to: "/auth", replace: true });
+                    }}
+                    aria-label="Sign out"
+                    className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+                  >
+                    <LogOut size={16} />
+                    <span className="hidden sm:inline">Sign out</span>
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/auth"
+                  className="inline-flex items-center rounded-full bg-studio-accent px-4 py-2 text-sm font-semibold"
+                >
+                  Sign in
+                </Link>
+              ))}
+            <a
+              href="https://lucide.dev/icons/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+            >
+              <ExternalLink size={16} />
+              <span className="hidden sm:inline">Docs</span>
+            </a>
+          </div>
+        </header>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+          {/* Customizer */}
+          <aside className="h-fit rounded-2xl border border-studio-line bg-studio-panel p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Customizer</h2>
+              <button
+                onClick={resetAll}
+                aria-label="Reset customizer"
+                className="rounded-full p-1.5 text-studio-muted transition-colors hover:bg-studio-elevated hover:text-studio-text"
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-6">
+              <div>
+                <label className="text-sm font-medium" htmlFor="color-hex">
+                  Color
+                </label>
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-studio-line bg-studio-elevated p-2">
+                  <input
+                    type="color"
+                    aria-label="Pick color"
+                    value={/^#[0-9a-f]{6}$/i.test(spec.color) ? spec.color : "#ffffff"}
+                    onChange={(e) => apply({ color: e.target.value })}
+                    className="size-7 shrink-0 cursor-pointer rounded border-none bg-transparent p-0"
+                  />
+                  <input
+                    id="color-hex"
+                    value={spec.color}
+                    onChange={(e) => apply({ color: e.target.value })}
+                    className="w-full min-w-0 bg-transparent text-sm outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-sm">
+                  <label className="font-medium" htmlFor="stroke">
+                    Stroke width
+                  </label>
+                  <span className="text-studio-muted">{spec.stroke}px</span>
+                </div>
+                <input
+                  id="stroke"
+                  type="range"
+                  min={0.5}
+                  max={4}
+                  step={0.5}
+                  value={spec.stroke}
+                  onChange={(e) => apply({ stroke: Number(e.target.value) })}
+                  className="studio-range mt-3"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-sm">
+                  <label className="font-medium" htmlFor="size">
+                    Size
+                  </label>
+                  <span className="text-studio-muted">{spec.size}px</span>
+                </div>
+                <input
+                  id="size"
+                  type="range"
+                  min={16}
+                  max={512}
+                  step={1}
+                  value={spec.size}
+                  onChange={(e) => apply({ size: Number(e.target.value) })}
+                  className="studio-range mt-3"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">Absolute stroke width</span>
+                <button
+                  role="switch"
+                  aria-checked={spec.absolute}
+                  aria-label="Absolute stroke width"
+                  onClick={() => apply({ absolute: !spec.absolute })}
+                  className={`relative h-6 w-11 shrink-0 rounded-full border border-studio-line transition-colors ${
+                    spec.absolute ? "bg-studio-accent" : "bg-studio-elevated"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 size-4 rounded-full bg-studio-text transition-all ${
+                      spec.absolute ? "left-6" : "left-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium" htmlFor="icon-search">
+                  Icons
+                </label>
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-studio-line bg-studio-elevated px-3 py-2">
+                  <Search size={15} className="shrink-0 text-studio-muted" />
+                  <input
+                    id="icon-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search all icons…"
+                    className="w-full min-w-0 bg-transparent text-sm outline-none"
+                  />
+                </div>
+                <div className="mt-3 grid max-h-72 grid-cols-5 gap-2 overflow-y-auto pr-1">
+                  {results.map(({ pascal, name }) => {
+                    const Comp = lucideIcons[pascal as keyof typeof lucideIcons];
+                    return (
+                      <button
+                        key={pascal}
+                        onClick={() => apply({ pascal })}
+                        aria-label={name}
+                        title={`${name} — insert code`}
+                        className={`grid aspect-square place-items-center rounded-lg border transition-colors ${
+                          pascal === spec.pascal
+                            ? "border-studio-accent bg-studio-elevated"
+                            : "border-studio-line hover:bg-studio-elevated"
+                        }`}
+                      >
+                        <Comp size={18} />
+                      </button>
+                    );
+                  })}
+                  {results.length === 0 && (
+                    <p className="col-span-5 py-4 text-center text-xs text-studio-muted">
+                      No icons found.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Preview + code */}
+          <section className="min-w-0 space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
+              <div ref={shellRef} className="w-full max-w-[640px]">
+                <div
+                  ref={canvasRef}
+                  style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
+                  className="studio-grid grid max-w-full place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
+                >
+                  {parsed.kind === "svg" ? (
+                    <div
+                      style={{ width: inner * zoom, height: inner * zoom, maxWidth: inner, maxHeight: inner }}
+                      className="grid place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
+                      dangerouslySetInnerHTML={{ __html: parsed.svg }}
+                    />
+                  ) : Icon && parsed.kind === "icon" ? (
+                    <Icon
+                      color={spec.color}
+                      size={renderedPx}
+                      strokeWidth={spec.stroke}
+                      absoluteStrokeWidth={spec.absolute}
+                    />
+                  ) : (
+                    <div className="max-w-xs text-center text-sm text-studio-muted">
+                      <AlertTriangle className="mx-auto mb-3" size={24} />
+                      Nothing to preview
+                    </div>
+                  )}
+                </div>
+
+                {/* Zoom controls */}
+                <div className="mt-4 flex items-center gap-3 rounded-xl border border-studio-line bg-studio-panel px-3 py-2">
+                  <button
+                    onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
+                    aria-label="Zoom out"
+                    className="rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                  >
+                    <Minus size={15} />
+                  </button>
+                  <input
+                    type="range"
+                    aria-label="Zoom"
+                    min={MIN_ZOOM}
+                    max={MAX_ZOOM}
+                    step={0.05}
+                    value={zoom}
+                    onChange={(e) => setZoom(Number(e.target.value))}
+                    className="studio-range"
+                  />
+                  <button
+                    onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + 0.25).toFixed(2)))}
+                    aria-label="Zoom in"
+                    className="rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                  >
+                    <Plus size={15} />
+                  </button>
+                  <span className="w-12 shrink-0 text-right text-xs tabular-nums text-studio-muted">
+                    {Math.round(zoom * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setZoom(1)}
+                    aria-label="Fit icon"
+                    title="Reset zoom so the whole icon fits"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-studio-line px-2 py-1 text-xs text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                  >
+                    <Maximize2 size={13} />
+                    Fit
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-5 gap-2">
+                  {PREVIEW_SIZES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => apply({ size: s })}
+                      title={`Use ${s}px`}
+                      aria-label={`Set icon size to ${s} pixels`}
+                      className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${spec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
+                    >
+                      {Icon && parsed.kind === "icon" ? <Icon
+                        color={spec.color}
+                        size={Math.min(s, 42)}
+                        strokeWidth={spec.stroke}
+                        absoluteStrokeWidth={spec.absolute}
+                      /> : <span className="text-xs text-studio-muted">—</span>}
+                      <span className="sr-only">{s}px</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
+                <p className="mt-2 text-sm text-studio-muted">
+                  {spec.size}px · stroke {spec.stroke} · {spec.color}
+                  {fitZoom < 1 && ` · fitted to ${Math.round(fitZoom * 100)}%`}
+                </p>
+
+                {previewError && (
+                  <div className="mt-4 flex items-start gap-2 rounded-xl border border-studio-accent/60 bg-studio-elevated px-3 py-2 text-sm">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0 text-studio-accent" />
+                    <span>{previewError}</span>
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    onClick={copySvg}
+                    className="inline-flex items-center gap-2 rounded-full bg-studio-elevated px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-line"
+                  >
+                    {copied === "svg" ? <Check size={16} /> : <Copy size={16} />}
+                    {copied === "svg" ? "Copied SVG" : "Copy SVG"}
+                  </button>
+                  <button
+                    onClick={() => copy(code, "code")}
+                    className="inline-flex items-center gap-2 rounded-full bg-studio-elevated px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-line"
+                  >
+                    {copied === "code" ? <Check size={16} /> : <Copy size={16} />}
+                    {copied === "code" ? "Copied code" : "Copy code"}
+                  </button>
+                  <button
+                    onClick={downloadSvg}
+                    disabled={!Icon && parsed.kind !== "svg"}
+                    className="inline-flex items-center gap-2 rounded-full bg-studio-elevated px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-line disabled:opacity-40"
+                  >
+                    <Download size={16} /> Download SVG
+                  </button>
+                </div>
+
+                {/* Save */}
+                <div className="mt-6 rounded-2xl border border-studio-line bg-studio-panel p-4">
+                  <h3 className="text-base font-semibold">Save to library</h3>
+                  {user ? (
+                    <>
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder={`Name (default: ${iconName})`}
+                          className="w-full min-w-0 rounded-lg border border-studio-line bg-studio-elevated px-3 py-2 text-sm outline-none"
+                        />
+                        <button
+                          onClick={save}
+                          disabled={saving}
+                          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-studio-accent px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                        >
+                          <Save size={15} />
+                          Save
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs text-studio-muted">
+                        {saveMessage ?? "Manage everything you saved on the library page."}{" "}
+                        <Link to="/library" className="underline">
+                          Open library
+                        </Link>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm text-studio-muted">
+                      <Link to="/auth" className="underline">
+                        Sign in
+                      </Link>{" "}
+                      to save icons, code and settings to your own library.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Editable, highlighted code panel */}
+            <div className="overflow-hidden rounded-2xl border border-studio-line bg-studio-panel">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-studio-line px-4 py-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">Code</span>
+                  <span className="rounded-md bg-studio-elevated px-2 py-0.5 text-xs text-studio-muted">
+                    {labelFor(langId)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => copy(code, "code")}
+                  aria-label="Copy code"
+                  className="rounded-md p-2 text-studio-muted transition-colors hover:bg-studio-elevated hover:text-studio-text"
+                >
+                  {copied === "code" ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+              <Editor
+                value={code}
+                onValueChange={setCode}
+                highlight={highlight}
+                padding={20}
+                textareaClassName="outline-none"
+                className="min-h-[300px] font-mono text-sm leading-6"
+                style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+              />
+              <p className="border-t border-studio-line px-4 py-2 text-xs text-studio-muted">
+                Two-way: click an icon to insert its real code, or edit the props here and the
+                preview follows. Paste an <code>&lt;svg&gt;</code> block to render it directly.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-studio-line bg-studio-panel p-4">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-studio-accent" />
+                <h2 className="text-sm font-semibold">Icon assistant</h2>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={assistantRequest}
+                  onChange={(event) => setAssistantRequest(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void askAssistant();
+                  }}
+                  placeholder="Generate an icon or repair the current code…"
+                  maxLength={500}
+                  className="min-w-0 flex-1 rounded-lg border border-studio-line bg-studio-elevated px-3 py-2 text-sm outline-none"
+                />
+                <button
+                  onClick={askAssistant}
+                  disabled={assistantBusy || assistantRequest.trim().length < 2}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-accent px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  <Sparkles size={15} /> {assistantBusy ? "Working…" : "Generate / fix"}
+                </button>
+              </div>
+              {assistantError && <p className="mt-2 text-xs text-studio-accent">{assistantError}</p>}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

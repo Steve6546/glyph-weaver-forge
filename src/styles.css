@@ -132,6 +132,60 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+@theme inline {
+  --color-studio-bg: var(--studio-bg);
+  --color-studio-panel: var(--studio-panel);
+  --color-studio-elevated: var(--studio-elevated);
+  --color-studio-line: var(--studio-line);
+  --color-studio-accent: var(--studio-accent);
+  --color-studio-muted: var(--studio-muted);
+  --color-studio-text: var(--studio-text);
+}
+
+:root {
+  --studio-bg: oklch(0.16 0.004 285);
+  --studio-panel: oklch(0.2 0.004 285);
+  --studio-elevated: oklch(0.24 0.005 285);
+  --studio-line: oklch(0.3 0.005 285);
+  --studio-accent: oklch(0.63 0.22 24);
+  --studio-muted: oklch(0.68 0.01 285);
+  --studio-text: oklch(0.95 0.002 285);
+}
+
+@utility studio-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--studio-line) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--studio-line) 55%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+@utility studio-range {
+  appearance: none;
+  height: 2px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--studio-accent);
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    height: 14px;
+    width: 14px;
+    border-radius: 999px;
+    background: var(--studio-text);
+    border: none;
+  }
+
+  &::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border: none;
+    border-radius: 999px;
+    background: var(--studio-text);
+  }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -142,3 +196,4 @@
     color: var(--color-foreground);
   }
 }
+
