@@ -201,6 +201,7 @@ export default function IconStudio() {
   );
   const fitZoom = Math.min(1, Math.max(MIN_ZOOM, availableViewport / exportSize));
   const oneToOneZoom = 1;
+  const viewScale = zoomLevel;
   const previewSize = Math.max(1, exportSize * zoomLevel);
   const canvasSize = Math.max(1, previewSize + CANVAS_PAD * 2);
   const inner = previewSize;
