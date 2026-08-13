@@ -541,7 +541,7 @@ export default function IconStudio() {
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
                   {spec.size}px · stroke {spec.stroke} · {spec.color}
-                  {fitZoom < 1 && ` · fitted to ${Math.round(fitZoom * 100)}%`}
+                  {fitScale < 1 && ` · viewed at ${Math.round(viewScale * 100)}%`}
                 </p>
 
                 {previewError && (
