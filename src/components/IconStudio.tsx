@@ -67,7 +67,7 @@ const MIN_SIZE = 8;
 const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
 const MIN_CANVAS_SIZE = 480;
-const MAX_CANVAS_SIZE = 800;
+const MAX_CANVAS_SIZE = 1120;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
@@ -151,13 +151,8 @@ export default function IconStudio() {
       // must not replace the user's SVG with the last Lucide JSX snippet.
       const onlySize = Object.keys(patch).every((key) => key === "size");
       if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
-      if (onlySize && parsed.kind === "icon") {
-        const available = Math.min(MAX_CANVAS_SIZE, shellWidth || MAX_CANVAS_SIZE) - CANVAS_PAD * 2;
-        const nextFit = Math.min(1, available / next.size);
-        setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(1 / Math.max(nextFit, 0.02)).toFixed(2))));
-      }
     },
-    [parsed.kind, shellWidth, spec],
+    [parsed.kind, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -182,7 +177,7 @@ export default function IconStudio() {
 
   // One sizing system: `spec.size` is the real export size, and the canvas only
   // scales the view. Nothing is clamped, so 512px and 1024px still behave.
-  // Grow the physical preview surface with the exported artwork, up to 800px.
+  // Grow the physical preview surface with the exported artwork, up to 1120px.
   // The surrounding grid changes to a stacked layout before this can squeeze controls.
   const desiredCanvasSize = Math.min(
     MAX_CANVAS_SIZE,
@@ -193,6 +188,7 @@ export default function IconStudio() {
   const fitScale = Math.min(1, inner / spec.size);
   // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
   const viewScale = Math.max(0.02, fitScale * zoom);
+  const expandedPreviewLayout = spec.size > 600 || zoom > 1.5;
 
   const previewError =
     parsed.kind === "error"
@@ -494,8 +490,12 @@ export default function IconStudio() {
 
           {/* Preview + code */}
           <section className="min-w-0 space-y-6">
-            <div className="grid gap-6 2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]">
-              <div ref={shellRef} className="w-full max-w-[800px]">
+            <div
+              className={`grid gap-6 ${
+                expandedPreviewLayout ? "" : "2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]"
+              }`}
+            >
+              <div ref={shellRef} className="w-full max-w-[1120px]">
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
