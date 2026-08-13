@@ -177,18 +177,16 @@ export default function IconStudio() {
 
   // One sizing system: `spec.size` is the real export size, and the canvas only
   // scales the view. Nothing is clamped, so 512px and 1024px still behave.
-  // Grow the physical preview surface with the exported artwork, up to 1120px.
-  // The surrounding grid changes to a stacked layout before this can squeeze controls.
-  const desiredCanvasSize = Math.min(
-    MAX_CANVAS_SIZE,
-    Math.max(MIN_CANVAS_SIZE, spec.size + CANVAS_PAD * 2),
+  // Keep the preview frame stable while the artwork scales inside it. This
+  // prevents the page columns and action panel from jumping during resizing.
+  const canvasSize = Math.max(
+    320,
+    Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, shellWidth || 640)),
   );
-  const canvasSize = Math.max(320, Math.min(desiredCanvasSize, shellWidth || desiredCanvasSize));
   const inner = canvasSize - CANVAS_PAD * 2;
   const fitScale = Math.min(1, inner / spec.size);
   // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
   const viewScale = Math.max(0.02, fitScale * zoom);
-  const expandedPreviewLayout = spec.size > 600 || zoom > 1.5;
 
   const previewError =
     parsed.kind === "error"
@@ -490,11 +488,7 @@ export default function IconStudio() {
 
           {/* Preview + code */}
           <section className="min-w-0 space-y-6">
-            <div
-              className={`grid gap-6 ${
-                expandedPreviewLayout ? "" : "2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]"
-              }`}
-            >
+            <div className="grid gap-6 2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]">
               <div ref={shellRef} className="w-full max-w-[1120px]">
                 <div
                   ref={canvasRef}
@@ -507,13 +501,13 @@ export default function IconStudio() {
                         width: inner * viewScale,
                         height: inner * viewScale,
                       }}
-                      className="grid place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
+                      className="grid place-items-center transition-[width,height] duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
                     <div
                       style={{ width: spec.size * viewScale, height: spec.size * viewScale }}
-                      className="relative"
+                      className="relative transition-[width,height] duration-150 ease-out"
                     >
                       <div
                         style={{
@@ -521,6 +515,7 @@ export default function IconStudio() {
                           height: spec.size,
                           transform: `scale(${viewScale})`,
                           transformOrigin: "top left",
+                          transition: "transform 150ms ease-out",
                         }}
                       >
                         <Icon
