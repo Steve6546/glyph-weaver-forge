@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ImagePlus, Loader2, Sparkles, Wand2, X } from "lucide-react";
+import { ImagePlus, Loader2, Sparkles, Wand2, X, icons as lucideIcons } from "lucide-react";
 
 import { assistIconCode } from "@/lib/icon-assistant.functions";
 import { DESIGN_CHECKLIST } from "@/lib/agent-rules";
 import { listSnippets } from "@/lib/snippets";
+import { parseCode } from "@/lib/icon-code";
 
 type Turn = {
   id: string;
@@ -43,6 +44,11 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled,
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const parsedPreview = generatedCode
+    ? parseCode(generatedCode, { pascal: "Camera", color, size, stroke, absolute: false })
+    : null;
+  const PreviewIcon = parsedPreview?.kind === "icon" ? lucideIcons[parsedPreview.spec.pascal] : null;
 
   useEffect(() => {
     if (open && enabled) inputRef.current?.focus();
@@ -252,7 +258,27 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled,
           <div className="min-h-64 rounded-xl border border-studio-line bg-studio-elevated p-4">
           <p className="text-xs font-semibold">Live preview</p>
           <div className="mt-3 grid min-h-56 place-items-center rounded-lg studio-grid p-6">
-            {generatedCode ? <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-studio-muted">{generatedCode}</pre> : <p className="text-xs text-studio-muted">Run the agent to preview a generated result.</p>}
+            {!generatedCode && <p className="text-xs text-studio-muted">Run the agent to preview a generated result.</p>}
+            {PreviewIcon && parsedPreview?.kind === "icon" && (
+              <PreviewIcon
+                size={Math.min(parsedPreview.spec.size, 220)}
+                color={parsedPreview.spec.color}
+                strokeWidth={parsedPreview.spec.stroke}
+                absoluteStrokeWidth={parsedPreview.spec.absolute}
+                aria-label="Generated icon preview"
+              />
+            )}
+            {parsedPreview?.kind === "svg" && (
+              <div
+                className="max-h-56 max-w-full [&>svg]:h-auto [&>svg]:max-h-56 [&>svg]:max-w-full"
+                dangerouslySetInnerHTML={{ __html: parsedPreview.svg }}
+              />
+            )}
+            {parsedPreview && ["error", "unknown", "empty"].includes(parsedPreview.kind) && (
+              <p className="text-xs text-studio-muted">
+                {parsedPreview.kind === "error" ? parsedPreview.message : "No renderable icon was found in this result."}
+              </p>
+            )}
           </div>
         </div>
         </div>
