@@ -29,12 +29,17 @@ function sanitizeSvg(source: string): string | null {
   if (documentNode.querySelector("parsererror")) return null;
   const svg = documentNode.documentElement;
   if (svg.tagName.toLowerCase() !== "svg") return null;
-  svg.querySelectorAll("script, foreignObject, iframe, object, embed").forEach((node) => node.remove());
+  svg
+    .querySelectorAll("script, foreignObject, iframe, object, embed")
+    .forEach((node) => node.remove());
   svg.querySelectorAll("*").forEach((node) => {
     for (const attribute of Array.from(node.attributes)) {
       const name = attribute.name.toLowerCase();
       const value = attribute.value.trim().toLowerCase();
-      if (name.startsWith("on") || ((name === "href" || name === "xlink:href") && value.startsWith("javascript:"))) {
+      if (
+        name.startsWith("on") ||
+        ((name === "href" || name === "xlink:href") && value.startsWith("javascript:"))
+      ) {
         node.removeAttribute(attribute.name);
       }
     }
@@ -98,7 +103,9 @@ export function parseCode(code: string, fallback: IconSpec): ParsedCode {
   const known = tags.find((t) => typeof t[1] === "string" && isIconName(t[1]));
 
   if (!known) {
-    const unknownTag = tags.find((t) => typeof t[1] === "string" && !["App", "Fragment", "Icon"].includes(t[1]));
+    const unknownTag = tags.find(
+      (t) => typeof t[1] === "string" && !["App", "Fragment", "Icon"].includes(t[1]),
+    );
     if (unknownTag) {
       return {
         kind: "error",

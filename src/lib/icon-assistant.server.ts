@@ -37,7 +37,11 @@ export type AssistantResult = {
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: unknown;
-  tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
   tool_call_id?: string;
 };
 
@@ -132,7 +136,11 @@ async function callGateway(apiKey: string, messages: ChatMessage[]) {
     choices?: Array<{
       message?: {
         content?: string | null;
-        tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
+        tool_calls?: Array<{
+          id: string;
+          type: "function";
+          function: { name: string; arguments: string };
+        }>;
       };
     }>;
   };

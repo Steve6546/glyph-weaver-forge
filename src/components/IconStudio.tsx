@@ -45,7 +45,6 @@ import {
   type ExportFormat,
 } from "@/lib/icon-export";
 
-
 // Interop: some bundlers hand back the module namespace instead of the component.
 const Editor = ((EditorModule as unknown as { default?: typeof EditorModule }).default ??
   EditorModule) as typeof EditorModule;
@@ -70,7 +69,6 @@ const CANVAS_PAD = 40;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
-
 
 /** Measures a container so the preview can always fit its glyph exactly. */
 function useElementWidth<T extends HTMLElement>() {
@@ -157,7 +155,8 @@ export default function IconStudio() {
     [langId],
   );
 
-  const Icon = parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
+  const Icon =
+    parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
   const iconName = toKebab(spec.pascal);
 
   // One sizing system: `spec.size` is the real export size, and the canvas only
@@ -171,7 +170,7 @@ export default function IconStudio() {
     parsed.kind === "error"
       ? parsed.message
       : parsed.kind === "empty"
-          ? "The editor is empty — the preview has been cleared. Pick an icon or paste code."
+        ? "The editor is empty — the preview has been cleared. Pick an icon or paste code."
         : parsed.kind === "unknown"
           ? "No renderable Lucide component or <svg> was found."
           : null;
@@ -225,7 +224,6 @@ export default function IconStudio() {
       setExportError("This browser does not allow copying images.");
     }
   };
-
 
   const resetAll = () => {
     setSpec(DEFAULT_SPEC);
@@ -379,7 +377,9 @@ export default function IconStudio() {
                       min={MIN_SIZE}
                       max={MAX_SIZE}
                       value={spec.size}
-                      onChange={(e) => apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })}
+                      onChange={(e) =>
+                        apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })
+                      }
                       className="w-16 rounded-md border border-studio-line bg-studio-elevated px-2 py-1 text-right text-xs tabular-nums outline-none"
                     />
                     <span className="text-xs text-studio-muted">px</span>
@@ -398,7 +398,6 @@ export default function IconStudio() {
                 <p className="mt-2 text-xs text-studio-muted">
                   Size is the exported artwork size. The zoom below only changes the view.
                 </p>
-
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -488,7 +487,6 @@ export default function IconStudio() {
                       />
                     </div>
                   ) : (
-
                     <div className="max-w-xs text-center text-sm text-studio-muted">
                       <AlertTriangle className="mx-auto mb-3" size={24} />
                       Nothing to preview
@@ -545,12 +543,16 @@ export default function IconStudio() {
                       aria-label={`Set icon size to ${s} pixels`}
                       className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${spec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
                     >
-                      {Icon && parsed.kind === "icon" ? <Icon
-                        color={spec.color}
-                        size={Math.min(s, 42)}
-                        strokeWidth={spec.stroke}
-                        absoluteStrokeWidth={spec.absolute}
-                      /> : <span className="text-xs text-studio-muted">—</span>}
+                      {Icon && parsed.kind === "icon" ? (
+                        <Icon
+                          color={spec.color}
+                          size={Math.min(s, 42)}
+                          strokeWidth={spec.stroke}
+                          absoluteStrokeWidth={spec.absolute}
+                        />
+                      ) : (
+                        <span className="text-xs text-studio-muted">—</span>
+                      )}
                       <span className="sr-only">{s}px</span>
                     </button>
                   ))}
@@ -651,7 +653,6 @@ export default function IconStudio() {
                   </div>
                 )}
 
-
                 {/* Save */}
                 <div className="mt-6 rounded-2xl border border-studio-line bg-studio-panel p-4">
                   <h3 className="text-base font-semibold">Save to library</h3>
@@ -732,7 +733,6 @@ export default function IconStudio() {
               enabled={Boolean(user)}
               onApply={setCode}
             />
-
           </section>
         </div>
       </div>
