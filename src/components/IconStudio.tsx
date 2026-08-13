@@ -151,6 +151,10 @@ export default function IconStudio() {
       // must not replace the user's SVG with the last Lucide JSX snippet.
       const onlySize = Object.keys(patch).every((key) => key === "size");
       if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
+      // Size presets and the size slider always start from a predictable fit.
+      // This prevents a previous 400% zoom from making a newly selected
+      // 1024px artwork overflow the viewport.
+      if (onlySize) setZoom(1);
     },
     [parsed.kind, spec],
   );
