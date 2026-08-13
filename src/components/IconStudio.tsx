@@ -480,7 +480,19 @@ export default function IconStudio() {
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
-                    <div style={{ transform: `scale(${viewScale})`, transformOrigin: "center" }}>
+                    <div
+                      style={{ width: spec.size * viewScale, height: spec.size * viewScale }}
+                      className="relative"
+                    >
+                      <div
+                        style={{
+                          width: spec.size,
+                          height: spec.size,
+                          transform: `scale(${viewScale})`,
+                          transformOrigin: "top left",
+                        }}
+                      >
+
                       <Icon
                         color={spec.color}
                         size={spec.size}
