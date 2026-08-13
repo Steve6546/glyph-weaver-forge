@@ -63,9 +63,14 @@ const DEFAULT_SPEC: IconSpec = {
   absolute: false,
 };
 const PREVIEW_SIZES = [16, 32, 64, 128, 256];
+const EXPORT_SIZES = [64, 128, 256, 512, 1024, 2048];
+const MIN_SIZE = 8;
+const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
+const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
+
 
 /** Measures a container so the preview can always fit its glyph exactly. */
 function useElementWidth<T extends HTMLElement>() {
