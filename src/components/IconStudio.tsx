@@ -147,10 +147,12 @@ export default function IconStudio() {
   const Icon = parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
   const iconName = toKebab(spec.pascal);
 
+  // One sizing system: `spec.size` is the real export size, and the canvas only
+  // scales the view. Nothing is clamped, so 512px and 1024px still behave.
   const canvasSize = Math.max(320, Math.min(640, shellWidth || 560));
   const inner = canvasSize - CANVAS_PAD * 2;
-  const fitZoom = Math.min(1, inner / spec.size);
-  const renderedPx = Math.max(8, Math.round(Math.min(spec.size * fitZoom * zoom, inner)));
+  const fitScale = Math.min(1, inner / spec.size);
+  const viewScale = Math.max(0.02, fitScale * zoom);
 
   const previewError =
     parsed.kind === "error"
@@ -171,37 +173,46 @@ export default function IconStudio() {
     }
   };
 
+  /** The one source every export reads from, so SVG and PNG always match. */
+  const currentSvg = () => {
+    const node = canvasRef.current?.querySelector("svg");
+    if (!node) return null;
+    return normalizeSvg(node as SVGSVGElement, spec.size);
+  };
+
   const copySvg = () => {
-    const svg = canvasRef.current?.querySelector("svg");
-    if (svg) copy(svg.outerHTML, "svg");
+    const svg = currentSvg();
+    if (svg) void copy(svg, "svg");
   };
 
-  const downloadSvg = () => {
-    const svg = canvasRef.current?.querySelector("svg");
-    if (!svg) return;
-    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${iconName || "icon"}.svg`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const askAssistant = async () => {
-    if (!assistantRequest.trim()) return;
-    setAssistantBusy(true);
-    setAssistantError(null);
+  const exportAs = async (format: ExportFormat, pixels: number) => {
+    const svg = currentSvg();
+    if (!svg) {
+      setExportError("There is nothing to export yet.");
+      return;
+    }
+    setExportError(null);
     try {
-      const result = await runAssistant({ data: { request: assistantRequest, code } });
-      setCode(result.code);
-      setAssistantRequest("");
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "The assistant could not update the code.");
-    } finally {
-      setAssistantBusy(false);
+      if (format === "svg") downloadSvgFile(svg, iconName || "icon");
+      else await downloadRaster(svg, iconName || "icon", pixels, format);
+      setExportOpen(false);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "The export failed.");
     }
   };
+
+  const copyPng = async () => {
+    const svg = currentSvg();
+    if (!svg) return;
+    try {
+      await copyPngToClipboard(svg, exportPixels);
+      setCopied("png");
+      setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setExportError("This browser does not allow copying images.");
+    }
+  };
+
 
   const resetAll = () => {
     setSpec(DEFAULT_SPEC);
