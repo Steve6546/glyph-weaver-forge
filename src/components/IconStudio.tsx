@@ -66,6 +66,8 @@ const EXPORT_SIZES = [64, 128, 256, 512, 1024, 2048];
 const MIN_SIZE = 8;
 const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
+const MIN_CANVAS_SIZE = 480;
+const MAX_CANVAS_SIZE = 800;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
@@ -150,7 +152,7 @@ export default function IconStudio() {
       const onlySize = Object.keys(patch).every((key) => key === "size");
       if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
       if (onlySize && parsed.kind === "icon") {
-        const available = Math.max(320, Math.min(640, shellWidth || 560)) - CANVAS_PAD * 2;
+        const available = Math.min(MAX_CANVAS_SIZE, shellWidth || MAX_CANVAS_SIZE) - CANVAS_PAD * 2;
         const nextFit = Math.min(1, available / next.size);
         setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(1 / Math.max(nextFit, 0.02)).toFixed(2))));
       }
@@ -180,7 +182,13 @@ export default function IconStudio() {
 
   // One sizing system: `spec.size` is the real export size, and the canvas only
   // scales the view. Nothing is clamped, so 512px and 1024px still behave.
-  const canvasSize = Math.max(320, Math.min(640, shellWidth || 560));
+  // Grow the physical preview surface with the exported artwork, up to 800px.
+  // The surrounding grid changes to a stacked layout before this can squeeze controls.
+  const desiredCanvasSize = Math.min(
+    MAX_CANVAS_SIZE,
+    Math.max(MIN_CANVAS_SIZE, spec.size + CANVAS_PAD * 2),
+  );
+  const canvasSize = Math.max(320, Math.min(desiredCanvasSize, shellWidth || desiredCanvasSize));
   const inner = canvasSize - CANVAS_PAD * 2;
   const fitScale = Math.min(1, inner / spec.size);
   // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
@@ -486,12 +494,12 @@ export default function IconStudio() {
 
           {/* Preview + code */}
           <section className="min-w-0 space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[auto_minmax(0,1fr)]">
-              <div ref={shellRef} className="w-full max-w-[640px]">
+            <div className="grid gap-6 2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]">
+              <div ref={shellRef} className="w-full max-w-[800px]">
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel"
+                  className="studio-grid grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
                 >
                   {parsed.kind === "svg" ? (
                     <div
