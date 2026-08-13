@@ -21,9 +21,7 @@ const schema = z.object({
     )
     .max(20)
     .optional(),
-  context: z
-    .object({ color: z.string().max(32), size: z.number(), stroke: z.number() })
-    .optional(),
+  context: z.object({ color: z.string().max(32), size: z.number(), stroke: z.number() }).optional(),
 });
 
 export const assistIconCode = createServerFn({ method: "POST" })

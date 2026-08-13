@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
+
 import {
   icons as lucideIcons,
   AlertTriangle,
@@ -36,7 +36,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { createSnippet } from "@/lib/snippets";
 import { detectLanguage, grammarFor, labelFor } from "@/lib/detect-language";
 import { buildIconCode, parseCode, toKebab, type IconSpec } from "@/lib/icon-code";
-import { assistIconCode } from "@/lib/icon-assistant.functions";
+import IconAgent from "@/components/IconAgent";
+import {
+  copyPngToClipboard,
+  downloadRaster,
+  downloadSvgFile,
+  normalizeSvg,
+  type ExportFormat,
+} from "@/lib/icon-export";
 
 // Interop: some bundlers hand back the module namespace instead of the component.
 const Editor = ((EditorModule as unknown as { default?: typeof EditorModule }).default ??
@@ -55,9 +62,13 @@ const DEFAULT_SPEC: IconSpec = {
   absolute: false,
 };
 const PREVIEW_SIZES = [16, 32, 64, 128, 256];
+const EXPORT_SIZES = [64, 128, 256, 512, 1024, 2048];
+const MIN_SIZE = 8;
+const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
+const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
 
 /** Measures a container so the preview can always fit its glyph exactly. */
 function useElementWidth<T extends HTMLElement>() {
@@ -79,7 +90,6 @@ function useElementWidth<T extends HTMLElement>() {
 export default function IconStudio() {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
-  const runAssistant = useServerFn(assistIconCode);
 
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC);
   const [code, setCode] = useState(() => buildIconCode(DEFAULT_SPEC));
@@ -89,9 +99,10 @@ export default function IconStudio() {
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [assistantRequest, setAssistantRequest] = useState("");
-  const [assistantBusy, setAssistantBusy] = useState(false);
-  const [assistantError, setAssistantError] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPixels, setExportPixels] = useState(512);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const [shellRef, shellWidth] = useElementWidth<HTMLDivElement>();
 
@@ -144,19 +155,22 @@ export default function IconStudio() {
     [langId],
   );
 
-  const Icon = parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
+  const Icon =
+    parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
   const iconName = toKebab(spec.pascal);
 
+  // One sizing system: `spec.size` is the real export size, and the canvas only
+  // scales the view. Nothing is clamped, so 512px and 1024px still behave.
   const canvasSize = Math.max(320, Math.min(640, shellWidth || 560));
   const inner = canvasSize - CANVAS_PAD * 2;
-  const fitZoom = Math.min(1, inner / spec.size);
-  const renderedPx = Math.max(8, Math.round(Math.min(spec.size * fitZoom * zoom, inner)));
+  const fitScale = Math.min(1, inner / spec.size);
+  const viewScale = Math.max(0.02, fitScale * zoom);
 
   const previewError =
     parsed.kind === "error"
       ? parsed.message
       : parsed.kind === "empty"
-          ? "The editor is empty — the preview has been cleared. Pick an icon or paste code."
+        ? "The editor is empty — the preview has been cleared. Pick an icon or paste code."
         : parsed.kind === "unknown"
           ? "No renderable Lucide component or <svg> was found."
           : null;
@@ -171,35 +185,45 @@ export default function IconStudio() {
     }
   };
 
+  /** The one source every export reads from, so SVG and PNG always match. */
+  const currentSvg = () => {
+    const node = canvasRef.current?.querySelector("svg");
+    if (!node) return null;
+    return normalizeSvg(node as SVGSVGElement, spec.size);
+  };
+
   const copySvg = () => {
-    const svg = canvasRef.current?.querySelector("svg");
-    if (svg) copy(svg.outerHTML, "svg");
+    const svg = currentSvg();
+    if (svg) void copy(svg, "svg");
   };
 
-  const downloadSvg = () => {
-    const svg = canvasRef.current?.querySelector("svg");
-    if (!svg) return;
-    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${iconName || "icon"}.svg`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const askAssistant = async () => {
-    if (!assistantRequest.trim()) return;
-    setAssistantBusy(true);
-    setAssistantError(null);
+  const exportAs = async (format: ExportFormat, pixels: number) => {
+    const svg = currentSvg();
+    if (!svg) {
+      setExportError("There is nothing to export yet.");
+      return;
+    }
+    setExportError(null);
     try {
-      const result = await runAssistant({ data: { request: assistantRequest, code } });
-      setCode(result.code);
-      setAssistantRequest("");
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "The assistant could not update the code.");
-    } finally {
-      setAssistantBusy(false);
+      if (format === "svg") downloadSvgFile(svg, iconName || "icon");
+      else await downloadRaster(svg, iconName || "icon", pixels, format);
+      setCopied(format);
+      setTimeout(() => setCopied(null), 1600);
+
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "The export failed.");
+    }
+  };
+
+  const copyPng = async () => {
+    const svg = currentSvg();
+    if (!svg) return;
+    try {
+      await copyPngToClipboard(svg, exportPixels);
+      setCopied("png");
+      setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setExportError("This browser does not allow copying images.");
     }
   };
 
@@ -348,18 +372,34 @@ export default function IconStudio() {
                   <label className="font-medium" htmlFor="size">
                     Size
                   </label>
-                  <span className="text-studio-muted">{spec.size}px</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      aria-label="Icon size in pixels"
+                      min={MIN_SIZE}
+                      max={MAX_SIZE}
+                      value={spec.size}
+                      onChange={(e) =>
+                        apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })
+                      }
+                      className="w-16 rounded-md border border-studio-line bg-studio-elevated px-2 py-1 text-right text-xs tabular-nums outline-none"
+                    />
+                    <span className="text-xs text-studio-muted">px</span>
+                  </div>
                 </div>
                 <input
                   id="size"
                   type="range"
-                  min={16}
-                  max={512}
+                  min={MIN_SIZE}
+                  max={MAX_SIZE}
                   step={1}
                   value={spec.size}
-                  onChange={(e) => apply({ size: Number(e.target.value) })}
+                  onChange={(e) => apply({ size: clampSize(Number(e.target.value)) })}
                   className="studio-range mt-3"
                 />
+                <p className="mt-2 text-xs text-studio-muted">
+                  Size is the exported artwork size. The zoom below only changes the view.
+                </p>
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -435,17 +475,32 @@ export default function IconStudio() {
                 >
                   {parsed.kind === "svg" ? (
                     <div
-                      style={{ width: inner * zoom, height: inner * zoom, maxWidth: inner, maxHeight: inner }}
+                      style={{ width: inner, height: inner, transform: `scale(${zoom})` }}
                       className="grid place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
-                    <Icon
-                      color={spec.color}
-                      size={renderedPx}
-                      strokeWidth={spec.stroke}
-                      absoluteStrokeWidth={spec.absolute}
-                    />
+                    <div
+                      style={{ width: spec.size * viewScale, height: spec.size * viewScale }}
+                      className="relative"
+                    >
+                      <div
+                        style={{
+                          width: spec.size,
+                          height: spec.size,
+                          transform: `scale(${viewScale})`,
+                          transformOrigin: "top left",
+                        }}
+                      >
+                        <Icon
+                          color={spec.color}
+                          size={spec.size}
+                          strokeWidth={spec.stroke}
+                          absoluteStrokeWidth={spec.absolute}
+                        />
+                      </div>
+                    </div>
+
                   ) : (
                     <div className="max-w-xs text-center text-sm text-studio-muted">
                       <AlertTriangle className="mx-auto mb-3" size={24} />
@@ -503,12 +558,16 @@ export default function IconStudio() {
                       aria-label={`Set icon size to ${s} pixels`}
                       className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${spec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
                     >
-                      {Icon && parsed.kind === "icon" ? <Icon
-                        color={spec.color}
-                        size={Math.min(s, 42)}
-                        strokeWidth={spec.stroke}
-                        absoluteStrokeWidth={spec.absolute}
-                      /> : <span className="text-xs text-studio-muted">—</span>}
+                      {Icon && parsed.kind === "icon" ? (
+                        <Icon
+                          color={spec.color}
+                          size={Math.min(s, 42)}
+                          strokeWidth={spec.stroke}
+                          absoluteStrokeWidth={spec.absolute}
+                        />
+                      ) : (
+                        <span className="text-xs text-studio-muted">—</span>
+                      )}
                       <span className="sr-only">{s}px</span>
                     </button>
                   ))}
@@ -519,7 +578,7 @@ export default function IconStudio() {
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
                   {spec.size}px · stroke {spec.stroke} · {spec.color}
-                  {fitZoom < 1 && ` · fitted to ${Math.round(fitZoom * 100)}%`}
+                  {fitScale < 1 && ` · viewed at ${Math.round(viewScale * 100)}%`}
                 </p>
 
                 {previewError && (
@@ -545,13 +604,69 @@ export default function IconStudio() {
                     {copied === "code" ? "Copied code" : "Copy code"}
                   </button>
                   <button
-                    onClick={downloadSvg}
+                    onClick={() => setExportOpen((v) => !v)}
+                    aria-expanded={exportOpen}
                     disabled={!Icon && parsed.kind !== "svg"}
-                    className="inline-flex items-center gap-2 rounded-full bg-studio-elevated px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-line disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-full bg-studio-accent px-4 py-2 text-sm font-semibold transition-opacity disabled:opacity-40"
                   >
-                    <Download size={16} /> Download SVG
+                    <Download size={16} /> Export
                   </button>
                 </div>
+
+                {exportOpen && (
+                  <div className="mt-3 rounded-2xl border border-studio-line bg-studio-panel p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Raster size</span>
+                      <span className="text-studio-muted">
+                        {exportPixels}×{exportPixels}px
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {EXPORT_SIZES.map((px) => (
+                        <button
+                          key={px}
+                          onClick={() => setExportPixels(px)}
+                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                            exportPixels === px
+                              ? "border-studio-accent bg-studio-elevated"
+                              : "border-studio-line text-studio-muted hover:bg-studio-elevated"
+                          }`}
+                        >
+                          {px}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <button
+                        onClick={() => void exportAs("svg", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> SVG (vector)
+                      </button>
+                      <button
+                        onClick={() => void exportAs("png", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> PNG (transparent)
+                      </button>
+                      <button
+                        onClick={() => void exportAs("jpg", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> JPG (white)
+                      </button>
+                      <button
+                        onClick={() => void copyPng()}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        {copied === "png" ? <Check size={15} /> : <Copy size={15} />} Copy PNG
+                      </button>
+                    </div>
+                    {exportError && (
+                      <p className="mt-2 text-xs text-studio-accent">{exportError}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Save */}
                 <div className="mt-6 rounded-2xl border border-studio-line bg-studio-panel p-4">
@@ -633,7 +748,6 @@ export default function IconStudio() {
               enabled={Boolean(user)}
               onApply={setCode}
             />
-
           </section>
         </div>
       </div>
