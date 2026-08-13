@@ -179,6 +179,9 @@ export default function IconStudio() {
 
   // The canvas is a stable viewport; the artwork is rendered at its export size.
   const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
+  // Preview pixels are intentionally independent from the export resolution.
+  // The exported SVG is normalized to exportSize only when copied/downloaded.
+  const previewArtworkSize = Math.max(32, Math.min(canvasSize - CANVAS_PAD * 2, 480));
 
   const previewError =
     parsed.kind === "error"
@@ -517,24 +520,24 @@ export default function IconStudio() {
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
-                        width: exportSize,
-                        height: exportSize,
+                        width: previewArtworkSize,
+                        height: previewArtworkSize,
                       }}
-                      className="grid shrink-0 place-items-center transition-transform duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
+                      className="grid max-w-full max-h-full shrink-0 place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
                     <div
                       style={{
-                        width: exportSize,
-                        height: exportSize,
+                        width: previewArtworkSize,
+                        height: previewArtworkSize,
                       }}
-                      className="relative shrink-0"
+                      className="relative max-w-full max-h-full shrink-0"
                     >
                       <div
                         style={{
-                          width: exportSize,
-                          height: exportSize,
+                          width: "100%",
+                          height: "100%",
                           transform: "none",
                           transformOrigin: "top left",
                           transition: "transform 150ms ease-out",
@@ -542,9 +545,10 @@ export default function IconStudio() {
                       >
                         <Icon
                           color={renderSpec.color}
-                          size={exportSize}
+                          size={previewArtworkSize}
                           strokeWidth={renderSpec.stroke}
                           absoluteStrokeWidth={renderSpec.absolute}
+                          className="max-w-full max-h-full"
                         />
                       </div>
                     </div>
@@ -557,7 +561,7 @@ export default function IconStudio() {
                   )}
                 </div>
 
-                {/* Controls removed */}
+                {/* Preview controls intentionally removed. */}
                 {false && <div></div> /*
                   <button
                     onClick={() => setZoomLevel((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
