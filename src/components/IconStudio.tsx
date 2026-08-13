@@ -10,9 +10,6 @@ import {
   ExternalLink,
   Library,
   LogOut,
-  Maximize2,
-  Minus,
-  Plus,
   RotateCcw,
   Save,
   Search,
@@ -61,14 +58,11 @@ const DEFAULT_SPEC: IconSpec = {
   stroke: 2,
   absolute: false,
 };
-const PREVIEW_SIZES = [16, 32, 64, 128, 256];
 const EXPORT_SIZES = [64, 128, 256, 512, 1024, 2048];
 const MIN_SIZE = 8;
 const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
 const MAX_CANVAS_SIZE = 1120;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
 
 /** Measures a container so the preview can always fit its glyph exactly. */
@@ -96,7 +90,6 @@ export default function IconStudio() {
   const [code, setCode] = useState(() => buildIconCode(DEFAULT_SPEC));
   const [query, setQuery] = useState("");
   const [exportSize, setExportSize] = useState(DEFAULT_SPEC.size);
-  const [zoomLevel, setZoomLevel] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
@@ -143,7 +136,7 @@ export default function IconStudio() {
       canvas.scrollTop = Math.max(0, (canvas.scrollHeight - canvas.clientHeight) / 2);
     });
     return () => cancelAnimationFrame(frame);
-  }, [exportSize, zoomLevel, parsed.kind]);
+  }, [exportSize, parsed.kind]);
 
   const apply = useCallback(
     (patch: Partial<IconSpec>) => {
@@ -154,18 +147,11 @@ export default function IconStudio() {
       // must not replace the user's SVG with the last Lucide JSX snippet.
       const onlySize = Object.keys(patch).every((key) => key === "size");
       if (parsed.kind !== "svg") setCode(buildIconCode(next));
-      // Size presets and the size slider always start from a predictable fit.
-      // This prevents a previous 400% zoom from making a newly selected
-      // 1024px artwork overflow the viewport.
       if (onlySize) {
         setExportSize(next.size);
-        const available = Math.max(240, Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2);
-        setZoomLevel(
-          Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +((available * 0.85) / next.size).toFixed(3))),
-        );
       }
     },
-    [parsed, shellWidth, spec],
+    [parsed, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -191,20 +177,8 @@ export default function IconStudio() {
   const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
   const iconName = toKebab(renderSpec.pascal);
 
-  // The canvas is a stable viewport; export dimensions are scaled into it.
-  // zoomLevel is the absolute display scale: 1 = true 1:1 pixels.
+  // The canvas is a stable viewport; the artwork is rendered at its export size.
   const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
-  const availableViewport = Math.max(
-    240,
-    canvasSize - CANVAS_PAD * 2,
-  );
-  const fitZoom = Math.min(
-    MAX_ZOOM,
-    Math.max(MIN_ZOOM, +(availableViewport * 0.85 / exportSize).toFixed(3)),
-  );
-  const oneToOneZoom = 1;
-  const viewScale = zoomLevel;
-  const inner = availableViewport;
 
   const previewError =
     parsed.kind === "error"
@@ -271,7 +245,6 @@ export default function IconStudio() {
     setSpec(DEFAULT_SPEC);
     setCode(buildIconCode(DEFAULT_SPEC));
     setExportSize(DEFAULT_SPEC.size);
-    setZoomLevel(1);
   };
 
   const save = async () => {
@@ -539,15 +512,13 @@ export default function IconStudio() {
                   className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
-                    Displaying {exportSize}×{exportSize}px @ {Math.round(zoomLevel * 100)}% Zoom
+                    Displaying {exportSize}×{exportSize}px
                   </div>
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
                         width: exportSize,
                         height: exportSize,
-                        transform: `scale(${viewScale})`,
-                        transformOrigin: "center",
                       }}
                       className="grid shrink-0 place-items-center transition-transform duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
@@ -557,10 +528,8 @@ export default function IconStudio() {
                       style={{
                         width: exportSize,
                         height: exportSize,
-                        transform: `scale(${viewScale})`,
-                        transformOrigin: "center",
                       }}
-                      className="relative shrink-0 transition-transform duration-150 ease-out"
+                      className="relative shrink-0"
                     >
                       <div
                         style={{
@@ -588,8 +557,8 @@ export default function IconStudio() {
                   )}
                 </div>
 
-                {/* Zoom controls */}
-                <div className="mt-4 flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-studio-line bg-studio-panel px-3 py-2">
+                {/* Controls removed */}
+                {false && <div></div> /*
                   <button
                     onClick={() => setZoomLevel((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
                     aria-label="Zoom out"
@@ -636,9 +605,9 @@ export default function IconStudio() {
                   >
                     1:1
                   </button>
-                </div>
+                */}
 
-                <div className="mt-4 grid grid-cols-5 gap-2">
+                {false && <div></div> /*
                   {PREVIEW_SIZES.map((s) => (
                     <button
                       key={s}
@@ -665,15 +634,13 @@ export default function IconStudio() {
                       <span className="sr-only">{s}px</span>
                     </button>
                   ))}
-                </div>
+                */}
               </div>
 
               <div className="min-w-0">
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
                   {exportSize}px export · stroke {renderSpec.stroke} · {renderSpec.color} · preview{" "}
-                  {Math.round(zoomLevel * 100)}%
-                  {fitZoom < 1 && ` (fit ${Math.round(fitZoom * 100)}%)`}
                 </p>
 
                 {previewError && (
