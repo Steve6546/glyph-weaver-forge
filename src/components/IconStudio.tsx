@@ -68,6 +68,7 @@ const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
 const MIN_CANVAS_SIZE = 480;
 const MAX_CANVAS_SIZE = 1120;
+const PREVIEW_BASE_SIZE = DEFAULT_SPEC.size;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
@@ -96,7 +97,8 @@ export default function IconStudio() {
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC);
   const [code, setCode] = useState(() => buildIconCode(DEFAULT_SPEC));
   const [query, setQuery] = useState("");
-  const [zoom, setZoom] = useState(1);
+  const [exportSize, setExportSize] = useState(DEFAULT_SPEC.size);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
@@ -121,6 +123,7 @@ export default function IconStudio() {
   useEffect(() => {
     if (parsed.kind !== "icon") return;
     const next = parsed.spec;
+    setExportSize(next.size);
     setSpec((prev) =>
       prev.pascal === next.pascal &&
       prev.color === next.color &&
@@ -141,7 +144,7 @@ export default function IconStudio() {
       canvas.scrollTop = Math.max(0, (canvas.scrollHeight - canvas.clientHeight) / 2);
     });
     return () => cancelAnimationFrame(frame);
-  }, [spec.size, zoom, parsed.kind]);
+  }, [exportSize, zoomLevel, parsed.kind]);
 
   const apply = useCallback(
     (patch: Partial<IconSpec>) => {
@@ -155,7 +158,10 @@ export default function IconStudio() {
       // Size presets and the size slider always start from a predictable fit.
       // This prevents a previous 400% zoom from making a newly selected
       // 1024px artwork overflow the viewport.
-      if (onlySize) setZoom(1);
+      if (onlySize) {
+        setExportSize(next.size);
+        setZoomLevel(1);
+      }
     },
     [parsed, spec],
   );
@@ -192,9 +198,17 @@ export default function IconStudio() {
     Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, shellWidth || 640)),
   );
   const inner = canvasSize - CANVAS_PAD * 2;
-  const fitScale = Math.min(1, inner / renderSpec.size);
-  // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
-  const viewScale = Math.max(0.02, fitScale * zoom);
+  // Preview geometry is intentionally independent from export resolution.
+  // `renderSpec.size` is used only by export/metadata; the editor always starts
+  // from the same base artwork size and applies zoom on top of auto-fit.
+  const fitScale = Math.min(1, inner / PREVIEW_BASE_SIZE);
+  const viewScale = Math.max(0.02, fitScale * zoomLevel);
+  const previewSize = PREVIEW_BASE_SIZE * viewScale;
+  const fitZoom = 1;
+  const oneToOneZoom = Math.min(
+    MAX_ZOOM,
+    Math.max(MIN_ZOOM, exportSize / PREVIEW_BASE_SIZE / Math.max(fitScale, 0.02)),
+  );
 
   const previewError =
     parsed.kind === "error"
@@ -219,7 +233,7 @@ export default function IconStudio() {
   const currentSvg = () => {
     const node = canvasRef.current?.querySelector("svg");
     if (!node) return null;
-    return normalizeSvg(node as SVGSVGElement, renderSpec.size);
+    return normalizeSvg(node as SVGSVGElement, exportSize);
   };
 
   const copySvg = () => {
@@ -260,7 +274,8 @@ export default function IconStudio() {
   const resetAll = () => {
     setSpec(DEFAULT_SPEC);
     setCode(buildIconCode(DEFAULT_SPEC));
-    setZoom(1);
+    setExportSize(DEFAULT_SPEC.size);
+    setZoomLevel(1);
   };
 
   const save = async () => {
@@ -276,7 +291,7 @@ export default function IconStudio() {
           icon_name: iconName,
           color: renderSpec.color,
           stroke: renderSpec.stroke,
-          size: renderSpec.size,
+          size: exportSize,
         },
         user.id,
       );
@@ -408,7 +423,7 @@ export default function IconStudio() {
                       aria-label="Icon size in pixels"
                       min={MIN_SIZE}
                       max={MAX_SIZE}
-                      value={renderSpec.size}
+                      value={exportSize}
                       onChange={(e) =>
                         apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })
                       }
@@ -423,7 +438,7 @@ export default function IconStudio() {
                   min={MIN_SIZE}
                   max={MAX_SIZE}
                   step={1}
-                  value={renderSpec.size}
+                  value={exportSize}
                   onChange={(e) => apply({ size: clampSize(Number(e.target.value)) })}
                   className="studio-range mt-3"
                 />
@@ -501,26 +516,29 @@ export default function IconStudio() {
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
+                  className="studio-grid relative grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
                 >
+                  <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
+                    Displaying {exportSize}×{exportSize}px @ {Math.round(zoomLevel * 100)}% Zoom
+                  </div>
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
-                        width: inner * viewScale,
-                        height: inner * viewScale,
+                        width: previewSize,
+                        height: previewSize,
                       }}
                       className="grid place-items-center transition-[width,height] duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
                     <div
-                      style={{ width: renderSpec.size * viewScale, height: renderSpec.size * viewScale }}
+                      style={{ width: previewSize, height: previewSize }}
                       className="relative transition-[width,height] duration-150 ease-out"
                     >
                       <div
                         style={{
-                          width: renderSpec.size,
-                          height: renderSpec.size,
+                          width: PREVIEW_BASE_SIZE,
+                          height: PREVIEW_BASE_SIZE,
                           transform: `scale(${viewScale})`,
                           transformOrigin: "top left",
                           transition: "transform 150ms ease-out",
@@ -528,7 +546,7 @@ export default function IconStudio() {
                       >
                         <Icon
                           color={renderSpec.color}
-                          size={renderSpec.size}
+                          size={PREVIEW_BASE_SIZE}
                           strokeWidth={renderSpec.stroke}
                           absoluteStrokeWidth={renderSpec.absolute}
                         />
@@ -546,7 +564,7 @@ export default function IconStudio() {
                 {/* Zoom controls */}
                 <div className="mt-4 flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-studio-line bg-studio-panel px-3 py-2">
                   <button
-                    onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
+                    onClick={() => setZoomLevel((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
                     aria-label="Zoom out"
                     className="shrink-0 rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
                   >
@@ -558,22 +576,22 @@ export default function IconStudio() {
                     min={MIN_ZOOM}
                     max={MAX_ZOOM}
                     step={0.05}
-                    value={zoom}
-                    onChange={(e) => setZoom(Number(e.target.value))}
+                    value={zoomLevel}
+                    onChange={(e) => setZoomLevel(Number(e.target.value))}
                     className="studio-range min-w-[120px] flex-1"
                   />
                   <button
-                    onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + 0.25).toFixed(2)))}
+                    onClick={() => setZoomLevel((z) => Math.min(MAX_ZOOM, +(z + 0.25).toFixed(2)))}
                     aria-label="Zoom in"
                     className="shrink-0 rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
                   >
                     <Plus size={15} />
                   </button>
                   <span className="w-12 shrink-0 text-right text-xs tabular-nums text-studio-muted">
-                    {Math.round(zoom * 100)}%
+                    {Math.round(zoomLevel * 100)}%
                   </span>
                   <button
-                    onClick={() => setZoom(1)}
+                    onClick={() => setZoomLevel(fitZoom)}
                     aria-label="Fit icon"
                     title="Reset zoom so the whole icon fits"
                     className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-studio-line px-2 py-1 text-xs text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
@@ -583,9 +601,7 @@ export default function IconStudio() {
                   </button>
                   <button
                     onClick={() =>
-                      setZoom(() =>
-                        Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(1 / Math.max(fitScale, 0.02)).toFixed(2))),
-                      )
+                      setZoomLevel(oneToOneZoom)
                     }
                     aria-label="View icon at one to one scale"
                     title="Show the artwork at its export size"
@@ -602,7 +618,7 @@ export default function IconStudio() {
                       onClick={() => apply({ size: s })}
                       title={`Use ${s}px`}
                       aria-label={`Set icon size to ${s} pixels`}
-                      className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${renderSpec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
+                      className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${exportSize === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
                     >
                       {parsed.kind === "svg" ? (
                         <div
@@ -628,8 +644,8 @@ export default function IconStudio() {
               <div className="min-w-0">
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
-                  {renderSpec.size}px export · stroke {renderSpec.stroke} · {renderSpec.color} · preview{" "}
-                  {Math.round(zoom * 100)}%
+                  {exportSize}px export · stroke {renderSpec.stroke} · {renderSpec.color} · preview{" "}
+                  {Math.round(zoomLevel * 100)}%
                   {fitScale < 1 && ` (auto-fit ${Math.round(fitScale * 100)}%)`}
                 </p>
 
@@ -795,7 +811,7 @@ export default function IconStudio() {
             <IconAgent
               code={code}
               color={renderSpec.color}
-              size={renderSpec.size}
+              size={exportSize}
               stroke={renderSpec.stroke}
               enabled={Boolean(user)}
               onApply={setCode}
