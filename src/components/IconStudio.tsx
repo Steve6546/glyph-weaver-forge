@@ -193,18 +193,17 @@ export default function IconStudio() {
   const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
   const iconName = toKebab(renderSpec.pascal);
 
-  // At 100%, the rendered canvas represents the actual export dimensions.
-  // Fit is a separate calculated zoom that keeps that canvas inside the viewport.
+  // The canvas is a stable viewport; export dimensions are scaled into it.
+  // This keeps large SVGs contained while preserving a true 1:1 mode.
+  const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
   const availableViewport = Math.max(
     240,
-    Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2,
+    canvasSize - CANVAS_PAD * 2,
   );
   const fitZoom = Math.min(1, Math.max(MIN_ZOOM, availableViewport / exportSize));
-  const oneToOneZoom = 1;
-  const viewScale = zoomLevel;
-  const previewSize = Math.max(1, exportSize * zoomLevel);
-  const canvasSize = Math.max(1, previewSize + CANVAS_PAD * 2);
-  const inner = previewSize;
+  const oneToOneZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, 1 / fitZoom));
+  const viewScale = fitZoom * zoomLevel;
+  const inner = availableViewport;
 
   const previewError =
     parsed.kind === "error"
@@ -512,7 +511,7 @@ export default function IconStudio() {
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
+                  className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
                     Displaying {exportSize}×{exportSize}px @ {Math.round(zoomLevel * 100)}% Zoom
@@ -520,22 +519,29 @@ export default function IconStudio() {
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
-                        width: previewSize,
-                        height: previewSize,
+                        width: exportSize,
+                        height: exportSize,
+                        transform: `scale(${viewScale})`,
+                        transformOrigin: "center",
                       }}
-                      className="grid place-items-center transition-[width,height] duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
+                      className="grid shrink-0 place-items-center transition-transform duration-150 ease-out [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
                     <div
-                      style={{ width: previewSize, height: previewSize }}
-                      className="relative transition-[width,height] duration-150 ease-out"
+                      style={{
+                        width: exportSize,
+                        height: exportSize,
+                        transform: `scale(${viewScale})`,
+                        transformOrigin: "center",
+                      }}
+                      className="relative shrink-0 transition-transform duration-150 ease-out"
                     >
                       <div
                         style={{
                           width: exportSize,
                           height: exportSize,
-                          transform: `scale(${viewScale})`,
+                          transform: "none",
                           transformOrigin: "top left",
                           transition: "transform 150ms ease-out",
                         }}
