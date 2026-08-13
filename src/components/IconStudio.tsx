@@ -145,18 +145,19 @@ export default function IconStudio() {
 
   const apply = useCallback(
     (patch: Partial<IconSpec>) => {
-      const next = { ...spec, ...patch };
+      const base = parsed.kind === "icon" ? parsed.spec : spec;
+      const next = { ...base, ...patch };
       setSpec(next);
       // A pasted SVG is its own source of truth. Changing its export size
       // must not replace the user's SVG with the last Lucide JSX snippet.
       const onlySize = Object.keys(patch).every((key) => key === "size");
-      if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
+      if (parsed.kind !== "svg") setCode(buildIconCode(next));
       // Size presets and the size slider always start from a predictable fit.
       // This prevents a previous 400% zoom from making a newly selected
       // 1024px artwork overflow the viewport.
       if (onlySize) setZoom(1);
     },
-    [parsed.kind, spec],
+    [parsed, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -177,7 +178,10 @@ export default function IconStudio() {
 
   const Icon =
     parsed.kind === "icon" ? lucideIcons[parsed.spec.pascal as keyof typeof lucideIcons] : null;
-  const iconName = toKebab(spec.pascal);
+  // Parsed code is authoritative for the rendered icon. The local spec is the
+  // fallback used while editing invalid/empty code and for SVG metadata.
+  const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
+  const iconName = toKebab(renderSpec.pascal);
 
   // One sizing system: `spec.size` is the real export size, and the canvas only
   // scales the view. Nothing is clamped, so 512px and 1024px still behave.
@@ -188,7 +192,7 @@ export default function IconStudio() {
     Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, shellWidth || 640)),
   );
   const inner = canvasSize - CANVAS_PAD * 2;
-  const fitScale = Math.min(1, inner / spec.size);
+  const fitScale = Math.min(1, inner / renderSpec.size);
   // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
   const viewScale = Math.max(0.02, fitScale * zoom);
 
@@ -215,7 +219,7 @@ export default function IconStudio() {
   const currentSvg = () => {
     const node = canvasRef.current?.querySelector("svg");
     if (!node) return null;
-    return normalizeSvg(node as SVGSVGElement, spec.size);
+    return normalizeSvg(node as SVGSVGElement, renderSpec.size);
   };
 
   const copySvg = () => {
@@ -270,9 +274,9 @@ export default function IconStudio() {
           language: langId,
           code,
           icon_name: iconName,
-          color: spec.color,
-          stroke: spec.stroke,
-          size: spec.size,
+          color: renderSpec.color,
+          stroke: renderSpec.stroke,
+          size: renderSpec.size,
         },
         user.id,
       );
@@ -361,13 +365,13 @@ export default function IconStudio() {
                   <input
                     type="color"
                     aria-label="Pick color"
-                    value={/^#[0-9a-f]{6}$/i.test(spec.color) ? spec.color : "#ffffff"}
+                          value={/^#[0-9a-f]{6}$/i.test(renderSpec.color) ? renderSpec.color : "#ffffff"}
                     onChange={(e) => apply({ color: e.target.value })}
                     className="size-7 shrink-0 cursor-pointer rounded border-none bg-transparent p-0"
                   />
                   <input
                     id="color-hex"
-                    value={spec.color}
+                    value={renderSpec.color}
                     onChange={(e) => apply({ color: e.target.value })}
                     className="w-full min-w-0 bg-transparent text-sm outline-none"
                   />
@@ -379,7 +383,7 @@ export default function IconStudio() {
                   <label className="font-medium" htmlFor="stroke">
                     Stroke width
                   </label>
-                  <span className="text-studio-muted">{spec.stroke}px</span>
+                  <span className="text-studio-muted">{renderSpec.stroke}px</span>
                 </div>
                 <input
                   id="stroke"
@@ -387,7 +391,7 @@ export default function IconStudio() {
                   min={0.5}
                   max={4}
                   step={0.5}
-                  value={spec.stroke}
+                  value={renderSpec.stroke}
                   onChange={(e) => apply({ stroke: Number(e.target.value) })}
                   className="studio-range mt-3"
                 />
@@ -404,7 +408,7 @@ export default function IconStudio() {
                       aria-label="Icon size in pixels"
                       min={MIN_SIZE}
                       max={MAX_SIZE}
-                      value={spec.size}
+                      value={renderSpec.size}
                       onChange={(e) =>
                         apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })
                       }
@@ -419,7 +423,7 @@ export default function IconStudio() {
                   min={MIN_SIZE}
                   max={MAX_SIZE}
                   step={1}
-                  value={spec.size}
+                  value={renderSpec.size}
                   onChange={(e) => apply({ size: clampSize(Number(e.target.value)) })}
                   className="studio-range mt-3"
                 />
@@ -432,16 +436,16 @@ export default function IconStudio() {
                 <span className="text-sm font-medium">Absolute stroke width</span>
                 <button
                   role="switch"
-                  aria-checked={spec.absolute}
+                  aria-checked={renderSpec.absolute}
                   aria-label="Absolute stroke width"
-                  onClick={() => apply({ absolute: !spec.absolute })}
+                  onClick={() => apply({ absolute: !renderSpec.absolute })}
                   className={`relative h-6 w-11 shrink-0 rounded-full border border-studio-line transition-colors ${
-                    spec.absolute ? "bg-studio-accent" : "bg-studio-elevated"
+                    renderSpec.absolute ? "bg-studio-accent" : "bg-studio-elevated"
                   }`}
                 >
                   <span
                     className={`absolute top-0.5 size-4 rounded-full bg-studio-text transition-all ${
-                      spec.absolute ? "left-6" : "left-1"
+                      renderSpec.absolute ? "left-6" : "left-1"
                     }`}
                   />
                 </button>
@@ -471,7 +475,7 @@ export default function IconStudio() {
                         aria-label={name}
                         title={`${name} — insert code`}
                         className={`grid aspect-square place-items-center rounded-lg border transition-colors ${
-                          pascal === spec.pascal
+                          pascal === renderSpec.pascal
                             ? "border-studio-accent bg-studio-elevated"
                             : "border-studio-line hover:bg-studio-elevated"
                         }`}
@@ -510,23 +514,23 @@ export default function IconStudio() {
                     />
                   ) : Icon && parsed.kind === "icon" ? (
                     <div
-                      style={{ width: spec.size * viewScale, height: spec.size * viewScale }}
+                      style={{ width: renderSpec.size * viewScale, height: renderSpec.size * viewScale }}
                       className="relative transition-[width,height] duration-150 ease-out"
                     >
                       <div
                         style={{
-                          width: spec.size,
-                          height: spec.size,
+                          width: renderSpec.size,
+                          height: renderSpec.size,
                           transform: `scale(${viewScale})`,
                           transformOrigin: "top left",
                           transition: "transform 150ms ease-out",
                         }}
                       >
                         <Icon
-                          color={spec.color}
-                          size={spec.size}
-                          strokeWidth={spec.stroke}
-                          absoluteStrokeWidth={spec.absolute}
+                          color={renderSpec.color}
+                          size={renderSpec.size}
+                          strokeWidth={renderSpec.stroke}
+                          absoluteStrokeWidth={renderSpec.absolute}
                         />
                       </div>
                     </div>
@@ -598,7 +602,7 @@ export default function IconStudio() {
                       onClick={() => apply({ size: s })}
                       title={`Use ${s}px`}
                       aria-label={`Set icon size to ${s} pixels`}
-                      className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${spec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
+                      className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${renderSpec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
                     >
                       {parsed.kind === "svg" ? (
                         <div
@@ -607,10 +611,10 @@ export default function IconStudio() {
                         />
                       ) : Icon && parsed.kind === "icon" ? (
                         <Icon
-                          color={spec.color}
+                          color={renderSpec.color}
                           size={Math.min(s, 42)}
-                          strokeWidth={spec.stroke}
-                          absoluteStrokeWidth={spec.absolute}
+                          strokeWidth={renderSpec.stroke}
+                          absoluteStrokeWidth={renderSpec.absolute}
                         />
                       ) : (
                         <span className="text-xs text-studio-muted">—</span>
@@ -624,7 +628,7 @@ export default function IconStudio() {
               <div className="min-w-0">
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
-                  {spec.size}px export · stroke {spec.stroke} · {spec.color} · preview{" "}
+                  {renderSpec.size}px export · stroke {renderSpec.stroke} · {renderSpec.color} · preview{" "}
                   {Math.round(zoom * 100)}%
                   {fitScale < 1 && ` (auto-fit ${Math.round(fitScale * 100)}%)`}
                 </p>
@@ -790,9 +794,9 @@ export default function IconStudio() {
 
             <IconAgent
               code={code}
-              color={spec.color}
-              size={spec.size}
-              stroke={spec.stroke}
+              color={renderSpec.color}
+              size={renderSpec.size}
+              stroke={renderSpec.stroke}
               enabled={Boolean(user)}
               onApply={setCode}
             />
