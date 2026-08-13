@@ -116,18 +116,19 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled,
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-studio-line bg-studio-panel shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-2 border-b border-studio-line px-4 py-3">
+    <div className="fixed inset-0 z-50 flex h-dvh w-full flex-col bg-studio-bg" role="dialog" aria-modal="true" aria-label="Glyph Agent">
+      <div className="flex shrink-0 items-center gap-3 border-b border-studio-line bg-studio-panel px-5 py-4">
         <Sparkles size={16} className="text-studio-accent" />
-        <span className="text-sm font-semibold">Glyph Agent</span>
-        <span className="hidden text-xs text-studio-muted sm:inline">
-          designs, repairs and rewrites the code below
-        </span>
-        <button onClick={onClose} aria-label="Close Glyph Agent" className="ml-auto rounded-md p-1 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"><X size={18} /></button>
+        <div>
+          <h1 className="text-base font-semibold">Glyph Agent</h1>
+          <p className="text-xs text-studio-muted">Design, repair, and preview icon variants</p>
+        </div>
+        <button onClick={onClose} className="ml-auto inline-flex items-center gap-2 rounded-lg border border-studio-line px-3 py-2 text-sm font-medium text-studio-muted hover:bg-studio-elevated hover:text-studio-text">
+          <X size={16} /> <span>Back to Studio</span>
+        </button>
       </div>
-        <div className="grid max-h-[calc(90vh-56px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-          <div className="min-w-0">
+        <div className="grid min-h-0 flex-1 gap-5 overflow-hidden p-5 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
+          <div className="min-w-0 overflow-y-auto pr-1">
           {!enabled ? (
             <p className="text-sm text-studio-muted">Sign in to use the agent.</p>
           ) : (
@@ -255,9 +256,10 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled,
               </p>
             </>
           )}
-          <div className="min-h-64 rounded-xl border border-studio-line bg-studio-elevated p-4">
-          <p className="text-xs font-semibold">Live preview</p>
-          <div className="mt-3 grid min-h-56 place-items-center rounded-lg studio-grid p-6">
+          </div>
+          <section className="flex min-h-0 min-w-0 flex-col rounded-xl border border-studio-line bg-studio-panel p-5">
+          <p className="text-sm font-semibold">Live preview</p>
+          <div className="mt-3 grid min-h-0 flex-1 place-items-center overflow-hidden rounded-lg studio-grid p-8">
             {!generatedCode && <p className="text-xs text-studio-muted">Run the agent to preview a generated result.</p>}
             {PreviewIcon && parsedPreview?.kind === "icon" && (
               <PreviewIcon
@@ -280,10 +282,8 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled,
               </p>
             )}
           </div>
+          </section>
         </div>
-        </div>
-        </div>
-      </div>
     </div>
   );
 }
