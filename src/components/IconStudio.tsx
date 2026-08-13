@@ -130,6 +130,17 @@ export default function IconStudio() {
     );
   }, [parsed]);
 
+  // Keep oversized artwork centered when the scrollable preview grows.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const frame = requestAnimationFrame(() => {
+      canvas.scrollLeft = Math.max(0, (canvas.scrollWidth - canvas.clientWidth) / 2);
+      canvas.scrollTop = Math.max(0, (canvas.scrollHeight - canvas.clientHeight) / 2);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [spec.size, zoom, parsed.kind]);
+
   const apply = useCallback(
     (patch: Partial<IconSpec>) => {
       const next = { ...spec, ...patch };
