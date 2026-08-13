@@ -138,8 +138,13 @@ export default function IconStudio() {
       // must not replace the user's SVG with the last Lucide JSX snippet.
       const onlySize = Object.keys(patch).every((key) => key === "size");
       if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
+      if (onlySize && parsed.kind === "icon") {
+        const available = Math.max(320, Math.min(640, shellWidth || 560)) - CANVAS_PAD * 2;
+        const nextFit = Math.min(1, available / next.size);
+        setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(1 / Math.max(nextFit, 0.02)).toFixed(2))));
+      }
     },
-    [parsed.kind, spec],
+    [parsed.kind, shellWidth, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -475,7 +480,7 @@ export default function IconStudio() {
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid grid max-w-full place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
+                  className="studio-grid grid max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   {parsed.kind === "svg" ? (
                     <div
