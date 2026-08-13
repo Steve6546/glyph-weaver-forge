@@ -158,12 +158,9 @@ export default function IconStudio() {
       // 1024px artwork overflow the viewport.
       if (onlySize) {
         setExportSize(next.size);
-        const available = Math.max(
-          240,
-          Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2,
-        );
+        const available = Math.max(240, Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2);
         setZoomLevel(
-          Math.min(1, Math.max(MIN_ZOOM, +(available / next.size).toFixed(3))),
+          Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +((available * 0.85) / next.size).toFixed(3))),
         );
       }
     },
@@ -194,15 +191,18 @@ export default function IconStudio() {
   const iconName = toKebab(renderSpec.pascal);
 
   // The canvas is a stable viewport; export dimensions are scaled into it.
-  // This keeps large SVGs contained while preserving a true 1:1 mode.
+  // zoomLevel is the absolute display scale: 1 = true 1:1 pixels.
   const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
   const availableViewport = Math.max(
     240,
     canvasSize - CANVAS_PAD * 2,
   );
-  const fitZoom = Math.min(1, Math.max(MIN_ZOOM, availableViewport / exportSize));
-  const oneToOneZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, 1 / fitZoom));
-  const viewScale = fitZoom * zoomLevel;
+  const fitZoom = Math.min(
+    MAX_ZOOM,
+    Math.max(MIN_ZOOM, +(availableViewport * 0.85 / exportSize).toFixed(3)),
+  );
+  const oneToOneZoom = 1;
+  const viewScale = zoomLevel;
   const inner = availableViewport;
 
   const previewError =
