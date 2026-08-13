@@ -79,7 +79,6 @@ function useElementWidth<T extends HTMLElement>() {
 export default function IconStudio() {
   const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
-  const runAssistant = useServerFn(assistIconCode);
 
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC);
   const [code, setCode] = useState(() => buildIconCode(DEFAULT_SPEC));
@@ -89,9 +88,10 @@ export default function IconStudio() {
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [assistantRequest, setAssistantRequest] = useState("");
-  const [assistantBusy, setAssistantBusy] = useState(false);
-  const [assistantError, setAssistantError] = useState<string | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPixels, setExportPixels] = useState(512);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   const [shellRef, shellWidth] = useElementWidth<HTMLDivElement>();
 
