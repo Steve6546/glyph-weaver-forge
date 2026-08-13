@@ -492,14 +492,15 @@ export default function IconStudio() {
                           transformOrigin: "top left",
                         }}
                       >
-
-                      <Icon
-                        color={spec.color}
-                        size={spec.size}
-                        strokeWidth={spec.stroke}
-                        absoluteStrokeWidth={spec.absolute}
-                      />
+                        <Icon
+                          color={spec.color}
+                          size={spec.size}
+                          strokeWidth={spec.stroke}
+                          absoluteStrokeWidth={spec.absolute}
+                        />
+                      </div>
                     </div>
+
                   ) : (
                     <div className="max-w-xs text-center text-sm text-studio-muted">
                       <AlertTriangle className="mx-auto mb-3" size={24} />
