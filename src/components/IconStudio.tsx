@@ -207,7 +207,9 @@ export default function IconStudio() {
     try {
       if (format === "svg") downloadSvgFile(svg, iconName || "icon");
       else await downloadRaster(svg, iconName || "icon", pixels, format);
-      setExportOpen(false);
+      setCopied(format);
+      setTimeout(() => setCopied(null), 1600);
+
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "The export failed.");
     }
