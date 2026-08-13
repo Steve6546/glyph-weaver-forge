@@ -134,9 +134,12 @@ export default function IconStudio() {
     (patch: Partial<IconSpec>) => {
       const next = { ...spec, ...patch };
       setSpec(next);
-      setCode(buildIconCode(next));
+      // A pasted SVG is its own source of truth. Changing its export size
+      // must not replace the user's SVG with the last Lucide JSX snippet.
+      const onlySize = Object.keys(patch).every((key) => key === "size");
+      if (parsed.kind !== "svg" || !onlySize) setCode(buildIconCode(next));
     },
-    [spec],
+    [parsed.kind, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -164,6 +167,7 @@ export default function IconStudio() {
   const canvasSize = Math.max(320, Math.min(640, shellWidth || 560));
   const inner = canvasSize - CANVAS_PAD * 2;
   const fitScale = Math.min(1, inner / spec.size);
+  // zoom is the user-facing multiplier; fitScale only compensates for large artwork.
   const viewScale = Math.max(0.02, fitScale * zoom);
 
   const previewError =
@@ -475,7 +479,10 @@ export default function IconStudio() {
                 >
                   {parsed.kind === "svg" ? (
                     <div
-                      style={{ width: inner, height: inner, transform: `scale(${zoom})` }}
+                      style={{
+                        width: inner * viewScale,
+                        height: inner * viewScale,
+                      }}
                       className="grid place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
@@ -558,7 +565,12 @@ export default function IconStudio() {
                       aria-label={`Set icon size to ${s} pixels`}
                       className={`grid aspect-square min-w-0 place-items-center overflow-hidden rounded-lg border bg-studio-elevated p-1 transition-colors ${spec.size === s ? "border-studio-accent" : "border-studio-line hover:border-studio-muted"}`}
                     >
-                      {Icon && parsed.kind === "icon" ? (
+                      {parsed.kind === "svg" ? (
+                        <div
+                          className="grid size-full place-items-center [&>svg]:size-full [&>svg]:object-contain"
+                          dangerouslySetInnerHTML={{ __html: parsed.svg }}
+                        />
+                      ) : Icon && parsed.kind === "icon" ? (
                         <Icon
                           color={spec.color}
                           size={Math.min(s, 42)}
@@ -577,8 +589,9 @@ export default function IconStudio() {
               <div className="min-w-0">
                 <h2 className="text-3xl font-semibold lowercase">{iconName}</h2>
                 <p className="mt-2 text-sm text-studio-muted">
-                  {spec.size}px · stroke {spec.stroke} · {spec.color}
-                  {fitScale < 1 && ` · viewed at ${Math.round(viewScale * 100)}%`}
+                  {spec.size}px export · stroke {spec.stroke} · {spec.color} · preview{" "}
+                  {Math.round(zoom * 100)}%
+                  {fitScale < 1 && ` (auto-fit ${Math.round(fitScale * 100)}%)`}
                 </p>
 
                 {previewError && (
