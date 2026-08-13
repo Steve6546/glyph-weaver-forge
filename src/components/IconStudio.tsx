@@ -372,18 +372,33 @@ export default function IconStudio() {
                   <label className="font-medium" htmlFor="size">
                     Size
                   </label>
-                  <span className="text-studio-muted">{spec.size}px</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      aria-label="Icon size in pixels"
+                      min={MIN_SIZE}
+                      max={MAX_SIZE}
+                      value={spec.size}
+                      onChange={(e) => apply({ size: clampSize(Number(e.target.value) || MIN_SIZE) })}
+                      className="w-16 rounded-md border border-studio-line bg-studio-elevated px-2 py-1 text-right text-xs tabular-nums outline-none"
+                    />
+                    <span className="text-xs text-studio-muted">px</span>
+                  </div>
                 </div>
                 <input
                   id="size"
                   type="range"
-                  min={16}
-                  max={512}
+                  min={MIN_SIZE}
+                  max={MAX_SIZE}
                   step={1}
                   value={spec.size}
-                  onChange={(e) => apply({ size: Number(e.target.value) })}
+                  onChange={(e) => apply({ size: clampSize(Number(e.target.value)) })}
                   className="studio-range mt-3"
                 />
+                <p className="mt-2 text-xs text-studio-muted">
+                  Size is the exported artwork size. The zoom below only changes the view.
+                </p>
+
               </div>
 
               <div className="flex items-center justify-between gap-3">
