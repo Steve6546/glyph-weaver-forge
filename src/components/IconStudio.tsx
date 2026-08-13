@@ -66,9 +66,7 @@ const EXPORT_SIZES = [64, 128, 256, 512, 1024, 2048];
 const MIN_SIZE = 8;
 const MAX_SIZE = 1024;
 const CANVAS_PAD = 40;
-const MIN_CANVAS_SIZE = 480;
 const MAX_CANVAS_SIZE = 1120;
-const PREVIEW_BASE_SIZE = DEFAULT_SPEC.size;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const clampSize = (n: number) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(n)));
@@ -160,10 +158,16 @@ export default function IconStudio() {
       // 1024px artwork overflow the viewport.
       if (onlySize) {
         setExportSize(next.size);
-        setZoomLevel(1);
+        const available = Math.max(
+          240,
+          Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2,
+        );
+        setZoomLevel(
+          Math.min(1, Math.max(MIN_ZOOM, +(available / next.size).toFixed(3))),
+        );
       }
     },
-    [parsed, spec],
+    [parsed, shellWidth, spec],
   );
 
   const langId = useMemo(() => detectLanguage(code), [code]);
@@ -189,26 +193,17 @@ export default function IconStudio() {
   const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
   const iconName = toKebab(renderSpec.pascal);
 
-  // One sizing system: `spec.size` is the real export size, and the canvas only
-  // scales the view. Nothing is clamped, so 512px and 1024px still behave.
-  // Keep the preview frame stable while the artwork scales inside it. This
-  // prevents the page columns and action panel from jumping during resizing.
-  const canvasSize = Math.max(
-    320,
-    Math.min(MAX_CANVAS_SIZE, Math.max(MIN_CANVAS_SIZE, shellWidth || 640)),
+  // At 100%, the rendered canvas represents the actual export dimensions.
+  // Fit is a separate calculated zoom that keeps that canvas inside the viewport.
+  const availableViewport = Math.max(
+    240,
+    Math.min(MAX_CANVAS_SIZE, shellWidth || 640) - CANVAS_PAD * 2,
   );
-  const inner = canvasSize - CANVAS_PAD * 2;
-  // Preview geometry is intentionally independent from export resolution.
-  // `renderSpec.size` is used only by export/metadata; the editor always starts
-  // from the same base artwork size and applies zoom on top of auto-fit.
-  const fitScale = Math.min(1, inner / PREVIEW_BASE_SIZE);
-  const viewScale = Math.max(0.02, fitScale * zoomLevel);
-  const previewSize = PREVIEW_BASE_SIZE * viewScale;
-  const fitZoom = 1;
-  const oneToOneZoom = Math.min(
-    MAX_ZOOM,
-    Math.max(MIN_ZOOM, exportSize / PREVIEW_BASE_SIZE / Math.max(fitScale, 0.02)),
-  );
+  const fitZoom = Math.min(1, Math.max(MIN_ZOOM, availableViewport / exportSize));
+  const oneToOneZoom = 1;
+  const previewSize = Math.max(1, exportSize * zoomLevel);
+  const canvasSize = Math.max(1, previewSize + CANVAS_PAD * 2);
+  const inner = previewSize;
 
   const previewError =
     parsed.kind === "error"
@@ -512,11 +507,11 @@ export default function IconStudio() {
           {/* Preview + code */}
           <section className="min-w-0 space-y-6">
             <div className="grid gap-6 2xl:grid-cols-[minmax(0,800px)_minmax(320px,1fr)]">
-              <div ref={shellRef} className="w-full max-w-[1120px]">
+              <div ref={shellRef} className="w-full max-w-[1120px] overflow-auto">
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid relative grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
+                  className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel transition-[width,height] duration-200"
                 >
                   <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
                     Displaying {exportSize}×{exportSize}px @ {Math.round(zoomLevel * 100)}% Zoom
@@ -537,8 +532,8 @@ export default function IconStudio() {
                     >
                       <div
                         style={{
-                          width: PREVIEW_BASE_SIZE,
-                          height: PREVIEW_BASE_SIZE,
+                          width: exportSize,
+                          height: exportSize,
                           transform: `scale(${viewScale})`,
                           transformOrigin: "top left",
                           transition: "transform 150ms ease-out",
@@ -546,7 +541,7 @@ export default function IconStudio() {
                       >
                         <Icon
                           color={renderSpec.color}
-                          size={PREVIEW_BASE_SIZE}
+                          size={exportSize}
                           strokeWidth={renderSpec.stroke}
                           absoluteStrokeWidth={renderSpec.absolute}
                         />
@@ -646,7 +641,7 @@ export default function IconStudio() {
                 <p className="mt-2 text-sm text-studio-muted">
                   {exportSize}px export · stroke {renderSpec.stroke} · {renderSpec.color} · preview{" "}
                   {Math.round(zoomLevel * 100)}%
-                  {fitScale < 1 && ` (auto-fit ${Math.round(fitScale * 100)}%)`}
+                  {fitZoom < 1 && ` (fit ${Math.round(fitZoom * 100)}%)`}
                 </p>
 
                 {previewError && (
