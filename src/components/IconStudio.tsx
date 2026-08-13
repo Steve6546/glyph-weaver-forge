@@ -564,13 +564,70 @@ export default function IconStudio() {
                     {copied === "code" ? "Copied code" : "Copy code"}
                   </button>
                   <button
-                    onClick={downloadSvg}
+                    onClick={() => setExportOpen((v) => !v)}
+                    aria-expanded={exportOpen}
                     disabled={!Icon && parsed.kind !== "svg"}
-                    className="inline-flex items-center gap-2 rounded-full bg-studio-elevated px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-line disabled:opacity-40"
+                    className="inline-flex items-center gap-2 rounded-full bg-studio-accent px-4 py-2 text-sm font-semibold transition-opacity disabled:opacity-40"
                   >
-                    <Download size={16} /> Download SVG
+                    <Download size={16} /> Export
                   </button>
                 </div>
+
+                {exportOpen && (
+                  <div className="mt-3 rounded-2xl border border-studio-line bg-studio-panel p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Raster size</span>
+                      <span className="text-studio-muted">
+                        {exportPixels}×{exportPixels}px
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {EXPORT_SIZES.map((px) => (
+                        <button
+                          key={px}
+                          onClick={() => setExportPixels(px)}
+                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                            exportPixels === px
+                              ? "border-studio-accent bg-studio-elevated"
+                              : "border-studio-line text-studio-muted hover:bg-studio-elevated"
+                          }`}
+                        >
+                          {px}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <button
+                        onClick={() => void exportAs("svg", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> SVG (vector)
+                      </button>
+                      <button
+                        onClick={() => void exportAs("png", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> PNG (transparent)
+                      </button>
+                      <button
+                        onClick={() => void exportAs("jpg", exportPixels)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        <Download size={15} /> JPG (white)
+                      </button>
+                      <button
+                        onClick={() => void copyPng()}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-elevated px-3 py-2 text-sm font-medium hover:bg-studio-line"
+                      >
+                        {copied === "png" ? <Check size={15} /> : <Copy size={15} />} Copy PNG
+                      </button>
+                    </div>
+                    {exportError && (
+                      <p className="mt-2 text-xs text-studio-accent">{exportError}</p>
+                    )}
+                  </div>
+                )}
+
 
                 {/* Save */}
                 <div className="mt-6 rounded-2xl border border-studio-line bg-studio-panel p-4">
