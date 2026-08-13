@@ -454,18 +454,21 @@ export default function IconStudio() {
                 >
                   {parsed.kind === "svg" ? (
                     <div
-                      style={{ width: inner * zoom, height: inner * zoom, maxWidth: inner, maxHeight: inner }}
+                      style={{ width: inner, height: inner, transform: `scale(${zoom})` }}
                       className="grid place-items-center [&>svg]:h-full [&>svg]:w-full [&>svg]:object-contain"
                       dangerouslySetInnerHTML={{ __html: parsed.svg }}
                     />
                   ) : Icon && parsed.kind === "icon" ? (
-                    <Icon
-                      color={spec.color}
-                      size={renderedPx}
-                      strokeWidth={spec.stroke}
-                      absoluteStrokeWidth={spec.absolute}
-                    />
+                    <div style={{ transform: `scale(${viewScale})`, transformOrigin: "center" }}>
+                      <Icon
+                        color={spec.color}
+                        size={spec.size}
+                        strokeWidth={spec.stroke}
+                        absoluteStrokeWidth={spec.absolute}
+                      />
+                    </div>
                   ) : (
+
                     <div className="max-w-xs text-center text-sm text-studio-muted">
                       <AlertTriangle className="mx-auto mb-3" size={24} />
                       Nothing to preview
