@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ImagePlus, Loader2, Sparkles, Wand2, X } from "lucide-react";
+import { ImagePlus, Loader2, Sparkles, Wand2, X } from "lucide-react";
 
 import { assistIconCode } from "@/lib/icon-assistant.functions";
 import { DESIGN_CHECKLIST } from "@/lib/agent-rules";
@@ -21,6 +21,9 @@ type Props = {
   stroke: number;
   onApply: (code: string) => void;
   enabled: boolean;
+  open: boolean;
+  onClose: () => void;
+  onSave?: (code: string) => Promise<void> | void;
 };
 
 const PROMPTS = [
@@ -30,14 +33,14 @@ const PROMPTS = [
   "Fix the broken code",
 ];
 
-export default function IconAgent({ code, color, size, stroke, onApply, enabled }: Props) {
+export default function IconAgent({ code, color, size, stroke, onApply, enabled, open, onClose, onSave }: Props) {
   const run = useServerFn(assistIconCode);
-  const [open, setOpen] = useState(true);
   const [request, setRequest] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [image, setImage] = useState<{ dataUrl: string; name: string } | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -83,7 +86,7 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled 
         },
       });
 
-      onApply(result.code);
+      setGeneratedCode(result.code);
       setTurns((prev) => [
         {
           id: crypto.randomUUID(),
@@ -104,26 +107,21 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled 
     }
   };
 
+  if (!open) return null;
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-studio-line bg-studio-panel">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 border-b border-studio-line px-4 py-3 text-left"
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
+      <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-studio-line bg-studio-panel shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-2 border-b border-studio-line px-4 py-3">
         <Sparkles size={16} className="text-studio-accent" />
         <span className="text-sm font-semibold">Glyph Agent</span>
         <span className="hidden text-xs text-studio-muted sm:inline">
           designs, repairs and rewrites the code below
         </span>
-        <ChevronDown
-          size={16}
-          className={`ml-auto text-studio-muted transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {open && (
-        <div className="p-4">
+        <button onClick={onClose} aria-label="Close Glyph Agent" className="ml-auto rounded-md p-1 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"><X size={18} /></button>
+      </div>
+        <div className="grid max-h-[calc(90vh-56px)] gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+          <div className="min-w-0">
           {!enabled ? (
             <p className="text-sm text-studio-muted">Sign in to use the agent.</p>
           ) : (
@@ -204,6 +202,19 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled 
                 </p>
               )}
 
+              {generatedCode && (
+                <div className="mt-4 rounded-xl border border-studio-line bg-studio-elevated p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold">Generated result</span>
+                    <div className="flex gap-2">
+                      <button onClick={() => onApply(generatedCode)} className="rounded-lg bg-studio-accent px-3 py-1.5 text-xs font-semibold">Apply to editor</button>
+                      {onSave && <button onClick={() => void onSave(generatedCode)} className="rounded-lg border border-studio-line px-3 py-1.5 text-xs text-studio-muted hover:bg-studio-panel">Save to library</button>}
+                    </div>
+                  </div>
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-studio-panel p-3 text-[11px] text-studio-muted">{generatedCode}</pre>
+                </div>
+              )}
+
               {turns.length > 0 && (
                 <ul className="mt-4 space-y-2">
                   {turns.map((turn) => (
@@ -238,8 +249,15 @@ export default function IconAgent({ code, color, size, stroke, onApply, enabled 
               </p>
             </>
           )}
+          <div className="min-h-64 rounded-xl border border-studio-line bg-studio-elevated p-4">
+          <p className="text-xs font-semibold">Live preview</p>
+          <div className="mt-3 grid min-h-56 place-items-center rounded-lg studio-grid p-6">
+            {generatedCode ? <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] text-studio-muted">{generatedCode}</pre> : <p className="text-xs text-studio-muted">Run the agent to preview a generated result.</p>}
+          </div>
         </div>
-      )}
+        </div>
+        </div>
+      </div>
     </div>
   );
 }

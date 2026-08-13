@@ -104,6 +104,7 @@ export default function IconStudio() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPixels, setExportPixels] = useState(512);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const [shellRef, shellWidth] = useElementWidth<HTMLDivElement>();
@@ -299,6 +300,23 @@ export default function IconStudio() {
     }
   };
 
+  const saveAgentCode = async (generated: string) => {
+    if (!user) return;
+    await createSnippet(
+      {
+        title: `${iconName} agent variant`,
+        language: detectLanguage(generated),
+        code: generated,
+        icon_name: iconName,
+        color: renderSpec.color,
+        stroke: renderSpec.stroke,
+        size: exportSize,
+      },
+      user.id,
+    );
+    setSaveMessage("Agent variant saved to your library.");
+  };
+
   return (
     <div className="min-h-screen bg-studio-bg text-studio-text">
       <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
@@ -320,6 +338,13 @@ export default function IconStudio() {
                     <Library size={16} />
                     <span className="hidden sm:inline">Library</span>
                   </Link>
+                  <button
+                    onClick={() => setAgentOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+                  >
+                    <Sparkles size={16} />
+                    <span className="hidden sm:inline">Glyph Agent</span>
+                  </button>
                   <button
                     onClick={async () => {
                       await signOut();
@@ -810,17 +835,20 @@ export default function IconStudio() {
               </p>
             </div>
 
-            <IconAgent
-              code={code}
-              color={renderSpec.color}
-              size={exportSize}
-              stroke={renderSpec.stroke}
-              enabled={Boolean(user)}
-              onApply={setCode}
-            />
           </section>
         </div>
       </div>
+      <IconAgent
+        code={code}
+        color={renderSpec.color}
+        size={exportSize}
+        stroke={renderSpec.stroke}
+        enabled={Boolean(user)}
+        open={agentOpen}
+        onClose={() => setAgentOpen(false)}
+        onApply={setCode}
+        onSave={saveAgentCode}
+      />
     </div>
   );
 }
