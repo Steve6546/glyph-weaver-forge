@@ -480,7 +480,7 @@ export default function IconStudio() {
                 <div
                   ref={canvasRef}
                   style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
-                  className="studio-grid grid max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel"
+                  className="studio-grid grid w-full max-w-full place-items-center overflow-auto rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   {parsed.kind === "svg" ? (
                     <div
@@ -522,11 +522,11 @@ export default function IconStudio() {
                 </div>
 
                 {/* Zoom controls */}
-                <div className="mt-4 flex items-center gap-3 rounded-xl border border-studio-line bg-studio-panel px-3 py-2">
+                <div className="mt-4 flex w-full min-w-0 flex-wrap items-center gap-2 rounded-xl border border-studio-line bg-studio-panel px-3 py-2">
                   <button
                     onClick={() => setZoom((z) => Math.max(MIN_ZOOM, +(z - 0.25).toFixed(2)))}
                     aria-label="Zoom out"
-                    className="rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                    className="shrink-0 rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
                   >
                     <Minus size={15} />
                   </button>
@@ -538,12 +538,12 @@ export default function IconStudio() {
                     step={0.05}
                     value={zoom}
                     onChange={(e) => setZoom(Number(e.target.value))}
-                    className="studio-range"
+                    className="studio-range min-w-[120px] flex-1"
                   />
                   <button
                     onClick={() => setZoom((z) => Math.min(MAX_ZOOM, +(z + 0.25).toFixed(2)))}
                     aria-label="Zoom in"
-                    className="rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                    className="shrink-0 rounded-md p-1.5 text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
                   >
                     <Plus size={15} />
                   </button>
