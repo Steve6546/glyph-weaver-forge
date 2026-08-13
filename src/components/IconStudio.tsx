@@ -554,6 +554,18 @@ export default function IconStudio() {
                     <Maximize2 size={13} />
                     Fit
                   </button>
+                  <button
+                    onClick={() =>
+                      setZoom(() =>
+                        Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, +(1 / Math.max(fitScale, 0.02)).toFixed(2))),
+                      )
+                    }
+                    aria-label="View icon at one to one scale"
+                    title="Show the artwork at its export size"
+                    className="inline-flex shrink-0 items-center rounded-md border border-studio-line px-2 py-1 text-xs text-studio-muted hover:bg-studio-elevated hover:text-studio-text"
+                  >
+                    1:1
+                  </button>
                 </div>
 
                 <div className="mt-4 grid grid-cols-5 gap-2">
