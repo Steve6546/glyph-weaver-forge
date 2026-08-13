@@ -36,7 +36,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { createSnippet } from "@/lib/snippets";
 import { detectLanguage, grammarFor, labelFor } from "@/lib/detect-language";
 import { buildIconCode, parseCode, toKebab, type IconSpec } from "@/lib/icon-code";
-import { assistIconCode } from "@/lib/icon-assistant.functions";
+import IconAgent from "@/components/IconAgent";
+import {
+  copyPngToClipboard,
+  downloadRaster,
+  downloadSvgFile,
+  normalizeSvg,
+  type ExportFormat,
+} from "@/lib/icon-export";
+
 
 // Interop: some bundlers hand back the module namespace instead of the component.
 const Editor = ((EditorModule as unknown as { default?: typeof EditorModule }).default ??
