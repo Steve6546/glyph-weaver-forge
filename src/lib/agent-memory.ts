@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 /**
  * Short-term agent memory. Rows carry a 24h `expires_at`; expired rows are
@@ -23,7 +24,7 @@ export async function rememberFact(
     user_id: userId,
     role,
     content: content.slice(0, 4000),
-    metadata,
+    metadata: metadata as Json,
   });
 }
 
