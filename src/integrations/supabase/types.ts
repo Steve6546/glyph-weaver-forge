@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_memory: {
+        Row: {
+          content: string
+          created_at: string
+          expires_at: string
+          id: string
+          metadata: Json
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          role?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_settings: {
+        Row: {
+          allow_layers: boolean
+          allow_multicolor: boolean
+          complexity: number
+          corner_radius: number
+          created_at: string
+          default_color: string
+          default_size: number
+          default_stroke: number
+          design_rules: string
+          edit_plan: string
+          language: string
+          memory_enabled: boolean
+          style: string
+          transparent_background: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_layers?: boolean
+          allow_multicolor?: boolean
+          complexity?: number
+          corner_radius?: number
+          created_at?: string
+          default_color?: string
+          default_size?: number
+          default_stroke?: number
+          design_rules?: string
+          edit_plan?: string
+          language?: string
+          memory_enabled?: boolean
+          style?: string
+          transparent_background?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_layers?: boolean
+          allow_multicolor?: boolean
+          complexity?: number
+          corner_radius?: number
+          created_at?: string
+          default_color?: string
+          default_size?: number
+          default_stroke?: number
+          design_rules?: string
+          edit_plan?: string
+          language?: string
+          memory_enabled?: boolean
+          style?: string
+          transparent_background?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       snippets: {
         Row: {
           code: string
@@ -61,7 +148,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      purge_expired_agent_memory: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
