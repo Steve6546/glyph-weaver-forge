@@ -76,18 +76,18 @@ export const DESIGN_CHECKLIST = [
 ] as const;
 
 export type AgentPreferences = {
-  design_rules: string;
-  style: string;
-  default_color: string;
-  default_stroke: number;
-  default_size: number;
-  corner_radius: number;
-  complexity: number;
-  allow_layers: boolean;
-  allow_multicolor: boolean;
-  transparent_background: boolean;
-  edit_plan: string;
-  language: string;
+  design_rules?: string | undefined;
+  style?: string | undefined;
+  default_color?: string | undefined;
+  default_stroke?: number | undefined;
+  default_size?: number | undefined;
+  corner_radius?: number | undefined;
+  complexity?: number | undefined;
+  allow_layers?: boolean | undefined;
+  allow_multicolor?: boolean | undefined;
+  transparent_background?: boolean | undefined;
+  edit_plan?: string | undefined;
+  language?: string | undefined;
 };
 
 const STYLE_BRIEF: Record<string, string> = {
@@ -100,7 +100,7 @@ const STYLE_BRIEF: Record<string, string> = {
 };
 
 /** Folds the user's saved settings into the system contract for one request. */
-export function buildSystemRules(prefs?: Partial<AgentPreferences> | null): string {
+export function buildSystemRules(prefs?: AgentPreferences | null): string {
   if (!prefs) return AGENT_SYSTEM_RULES;
   const lines: string[] = ["", "## User settings (authoritative for this request)"];
   if (prefs.style) {

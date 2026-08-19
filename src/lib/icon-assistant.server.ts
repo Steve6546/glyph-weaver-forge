@@ -25,7 +25,7 @@ export type AssistantInput = {
   imageDataUrl?: string | undefined;
   library?: LibraryExample[] | undefined;
   context?: { color: string; size: number; stroke: number } | undefined;
-  settings?: Partial<AgentPreferences> | undefined;
+  settings?: AgentPreferences | undefined;
   memory?: Array<{ role: string; content: string }> | undefined;
 };
 

@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import EditorModule from "react-simple-code-editor";
@@ -143,16 +144,40 @@ export default function IconStudio() {
       const base = parsed.kind === "icon" ? parsed.spec : spec;
       const next = { ...base, ...patch };
       setSpec(next);
-      // A pasted SVG is its own source of truth. Changing its export size
-      // must not replace the user's SVG with the last Lucide JSX snippet.
-      const onlySize = Object.keys(patch).every((key) => key === "size");
-      if (parsed.kind !== "svg") setCode(buildIconCode(next));
-      if (onlySize) {
-        setExportSize(next.size);
+      setExportSize(next.size);
+      if (parsed.kind === "svg") {
+        // Custom / agent-generated SVG stays the source of truth: retune its
+        // root attributes in place instead of discarding the artwork.
+        if (patch.pascal) {
+          setCode(buildIconCode(next));
+          return;
+        }
+        setCode((current) =>
+          current.replace(/<svg\b[^>]*>/i, (tag) =>
+            tag
+              .replace(/\swidth="[^"]*"/i, "")
+              .replace(/\sheight="[^"]*"/i, "")
+              .replace(/\sstroke="[^"]*"/i, "")
+              .replace(/\sstroke-width="[^"]*"/i, "")
+              .replace(
+                /^<svg/i,
+                `<svg width="${next.size}" height="${next.size}" stroke="${next.color}" stroke-width="${next.stroke}"`,
+              ),
+          ),
+        );
+        return;
       }
+      setCode(buildIconCode(next));
     },
     [parsed, spec],
   );
+
+  /** Agent output replaces the editor atomically so no stale spec can fight it. */
+  const applyGenerated = useCallback((generated: string) => {
+    setCode(generated);
+    setSaveMessage(null);
+  }, []);
+
 
   const langId = useMemo(() => detectLanguage(code), [code]);
 
@@ -177,11 +202,15 @@ export default function IconStudio() {
   const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
   const iconName = toKebab(renderSpec.pascal);
 
-  // The canvas is a stable viewport; the artwork is rendered at its export size.
-  const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
-  // Preview pixels are intentionally independent from the export resolution.
-  // The exported SVG is normalized to exportSize only when copied/downloaded.
-  const previewArtworkSize = Math.max(32, Math.min(canvasSize - CANVAS_PAD * 2, 480));
+  // The canvas is a stable viewport that adapts to the screen; the artwork is
+  // rendered at its real export size and only scaled down when it cannot fit.
+  const canvasSize = Math.max(280, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
+  const availableArtwork = Math.max(64, Math.min(canvasSize, 640) - CANVAS_PAD * 2);
+  // 1:1 while the icon fits, proportional shrink beyond that — so the size
+  // slider is visible across the whole 8px…1024px range on any screen.
+  const fitScale = Math.min(1, availableArtwork / Math.max(1, exportSize));
+  const previewArtworkSize = Math.max(8, Math.round(exportSize * fitScale));
+
 
   const previewError =
     parsed.kind === "error"
@@ -307,6 +336,13 @@ export default function IconStudio() {
             {!authLoading &&
               (user ? (
                 <>
+                  <Link
+                    to="/settings"
+                    className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+                  >
+                    <Settings size={16} />
+                    <span className="hidden sm:inline">Settings</span>
+                  </Link>
                   <Link
                     to="/library"
                     className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
@@ -511,12 +547,17 @@ export default function IconStudio() {
               <div ref={shellRef} className="w-full max-w-[1120px] overflow-auto">
                 <div
                   ref={canvasRef}
-                  style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
+                  style={{
+                    width: canvasSize,
+                    height: Math.min(canvasSize, 640),
+                    padding: CANVAS_PAD,
+                  }}
                   className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
-                    Displaying {exportSize}×{exportSize}px
+                    {exportSize}×{exportSize}px · view {Math.round(fitScale * 100)}%
                   </div>
+
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
@@ -817,7 +858,8 @@ export default function IconStudio() {
         enabled={Boolean(user)}
         open={agentOpen}
         onClose={() => setAgentOpen(false)}
-        onApply={setCode}
+        onApply={applyGenerated}
+        userId={user?.id}
         onSave={saveAgentCode}
       />
     </div>

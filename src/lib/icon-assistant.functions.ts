@@ -22,6 +22,27 @@ const schema = z.object({
     .max(20)
     .optional(),
   context: z.object({ color: z.string().max(32), size: z.number(), stroke: z.number() }).optional(),
+  settings: z
+    .object({
+      design_rules: z.string().max(4000),
+      style: z.string().max(40),
+      default_color: z.string().max(32),
+      default_stroke: z.number(),
+      default_size: z.number(),
+      corner_radius: z.number(),
+      complexity: z.number(),
+      allow_layers: z.boolean(),
+      allow_multicolor: z.boolean(),
+      transparent_background: z.boolean(),
+      edit_plan: z.string().max(4000),
+      language: z.string().max(40),
+    })
+    .partial()
+    .optional(),
+  memory: z
+    .array(z.object({ role: z.string().max(40), content: z.string().max(2000) }))
+    .max(20)
+    .optional(),
 });
 
 export const assistIconCode = createServerFn({ method: "POST" })
