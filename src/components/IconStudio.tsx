@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import EditorModule from "react-simple-code-editor";
@@ -204,7 +205,7 @@ export default function IconStudio() {
   // The canvas is a stable viewport that adapts to the screen; the artwork is
   // rendered at its real export size and only scaled down when it cannot fit.
   const canvasSize = Math.max(280, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
-  const availableArtwork = Math.max(64, canvasSize - CANVAS_PAD * 2);
+  const availableArtwork = Math.max(64, Math.min(canvasSize, 640) - CANVAS_PAD * 2);
   // 1:1 while the icon fits, proportional shrink beyond that — so the size
   // slider is visible across the whole 8px…1024px range on any screen.
   const fitScale = Math.min(1, availableArtwork / Math.max(1, exportSize));
@@ -335,6 +336,13 @@ export default function IconStudio() {
             {!authLoading &&
               (user ? (
                 <>
+                  <Link
+                    to="/settings"
+                    className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
+                  >
+                    <Settings size={16} />
+                    <span className="hidden sm:inline">Settings</span>
+                  </Link>
                   <Link
                     to="/library"
                     className="inline-flex items-center gap-2 rounded-full border border-studio-line bg-studio-panel px-4 py-2 text-sm font-medium transition-colors hover:bg-studio-elevated"
@@ -850,7 +858,8 @@ export default function IconStudio() {
         enabled={Boolean(user)}
         open={agentOpen}
         onClose={() => setAgentOpen(false)}
-        onApply={setCode}
+        onApply={applyGenerated}
+        userId={user?.id}
         onSave={saveAgentCode}
       />
     </div>
