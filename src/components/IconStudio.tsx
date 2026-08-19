@@ -515,12 +515,17 @@ export default function IconStudio() {
               <div ref={shellRef} className="w-full max-w-[1120px] overflow-auto">
                 <div
                   ref={canvasRef}
-                  style={{ width: canvasSize, height: canvasSize, padding: CANVAS_PAD }}
+                  style={{
+                    width: canvasSize,
+                    height: Math.min(canvasSize, 640),
+                    padding: CANVAS_PAD,
+                  }}
                   className="studio-grid relative grid place-items-center overflow-hidden rounded-2xl border border-studio-line bg-studio-panel"
                 >
                   <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-studio-line bg-studio-panel/90 px-2 py-1 text-[11px] tabular-nums text-studio-muted shadow-sm">
-                    Displaying {exportSize}×{exportSize}px
+                    {exportSize}×{exportSize}px · view {Math.round(fitScale * 100)}%
                   </div>
+
                   {parsed.kind === "svg" ? (
                     <div
                       style={{
