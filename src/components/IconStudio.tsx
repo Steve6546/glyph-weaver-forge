@@ -177,11 +177,15 @@ export default function IconStudio() {
   const renderSpec = parsed.kind === "icon" ? parsed.spec : spec;
   const iconName = toKebab(renderSpec.pascal);
 
-  // The canvas is a stable viewport; the artwork is rendered at its export size.
-  const canvasSize = Math.max(320, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
-  // Preview pixels are intentionally independent from the export resolution.
-  // The exported SVG is normalized to exportSize only when copied/downloaded.
-  const previewArtworkSize = Math.max(32, Math.min(canvasSize - CANVAS_PAD * 2, 480));
+  // The canvas is a stable viewport that adapts to the screen; the artwork is
+  // rendered at its real export size and only scaled down when it cannot fit.
+  const canvasSize = Math.max(280, Math.min(MAX_CANVAS_SIZE, shellWidth || 640));
+  const availableArtwork = Math.max(64, canvasSize - CANVAS_PAD * 2);
+  // 1:1 while the icon fits, proportional shrink beyond that — so the size
+  // slider is visible across the whole 8px…1024px range on any screen.
+  const fitScale = Math.min(1, availableArtwork / Math.max(1, exportSize));
+  const previewArtworkSize = Math.max(8, Math.round(exportSize * fitScale));
+
 
   const previewError =
     parsed.kind === "error"
