@@ -143,16 +143,40 @@ export default function IconStudio() {
       const base = parsed.kind === "icon" ? parsed.spec : spec;
       const next = { ...base, ...patch };
       setSpec(next);
-      // A pasted SVG is its own source of truth. Changing its export size
-      // must not replace the user's SVG with the last Lucide JSX snippet.
-      const onlySize = Object.keys(patch).every((key) => key === "size");
-      if (parsed.kind !== "svg") setCode(buildIconCode(next));
-      if (onlySize) {
-        setExportSize(next.size);
+      setExportSize(next.size);
+      if (parsed.kind === "svg") {
+        // Custom / agent-generated SVG stays the source of truth: retune its
+        // root attributes in place instead of discarding the artwork.
+        if (patch.pascal) {
+          setCode(buildIconCode(next));
+          return;
+        }
+        setCode((current) =>
+          current.replace(/<svg\b[^>]*>/i, (tag) =>
+            tag
+              .replace(/\swidth="[^"]*"/i, "")
+              .replace(/\sheight="[^"]*"/i, "")
+              .replace(/\sstroke="[^"]*"/i, "")
+              .replace(/\sstroke-width="[^"]*"/i, "")
+              .replace(
+                /^<svg/i,
+                `<svg width="${next.size}" height="${next.size}" stroke="${next.color}" stroke-width="${next.stroke}"`,
+              ),
+          ),
+        );
+        return;
       }
+      setCode(buildIconCode(next));
     },
     [parsed, spec],
   );
+
+  /** Agent output replaces the editor atomically so no stale spec can fight it. */
+  const applyGenerated = useCallback((generated: string) => {
+    setCode(generated);
+    setSaveMessage(null);
+  }, []);
+
 
   const langId = useMemo(() => detectLanguage(code), [code]);
 
