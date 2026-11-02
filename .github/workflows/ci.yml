@@ -1,0 +1,54 @@
+# The build gate for glyph-weaver-forge.
+#
+# Two rules this workflow follows, both learned the hard way:
+#
+# 1. `npm ci`, never `npm install`. The lockfile is the contract; a green build
+#    that installed something else is not a green build. `package-lock.json` was
+#    out of sync with `package.json` (it pinned @lovable.dev/vite-tanstack-config
+#    2.12.0 while the manifest asked for 2.13.1), so `npm ci` refused to run at
+#    all until the lock was resynced - that resync is the other half of this PR.
+# 2. Only steps that actually pass today are in the gate. `npm run lint` is NOT
+#    run here: on `main` it reports 274 errors (272 mechanical prettier/prettier
+#    reflows plus two `{false && ...}` blocks that deliberately disable the
+#    preview controls in src/components/IconStudio.tsx). A workflow that is red
+#    on arrival teaches people to ignore it, so lint waits for its own cleanup
+#    change, and this file says so instead of hiding it.
+#
+# Actions are pinned to commit SHAs, not tags: a tag can be moved, and a workflow
+# that runs whoever controls the tag is a supply-chain hole.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Manual trigger, so the workflow can be re-run on purpose once the account
+  # can start runners again.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Vite 8 accepts ^20.19 || >=22.12. Both of these are tested, so a build
+        # that breaks on the older floor fails here rather than in a deploy.
+        node-version: ["22", "24"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install the locked tree
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
