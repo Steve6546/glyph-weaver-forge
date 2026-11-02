@@ -30,3 +30,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Environment files: a real value never enters the repository.
+# This covers the local, preview and production variants a developer or a
+# build step may create (.env.local, .env.production, ...).
+.env
+.env.*
+*.env
+
+# Templates are the opposite case: they document variable names and must
+# stay tracked, so they are exempted after the rules above.
+!.env.example
+!.env.sample
+!.env.template
